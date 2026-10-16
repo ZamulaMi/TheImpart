@@ -1039,35 +1039,12 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
   };
 
   const handleSaveArticle = async (article: Article) => {
-    let savedArticle = article;
-
-    // 1. Зберігаємо у хмарну базу даних Neon безпосередньо (доступно для всіх браузерів)
-    try {
-      savedArticle = await saveArticleToCloud(article);
-    } catch (err) {
-      console.warn('Direct Neon cloud save notice, trying server endpoint:', err);
-    }
-
-    // 2. Резервний фоновий бекап на сервер
-    try {
-      await fetch(`/api/articles?_t=${Date.now()}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-          ...getAuthHeaders(),
-        },
-        body: JSON.stringify(article),
-      });
-    } catch (e) {
-      // Резервний запит
-    }
-
+    // 1. Оновлюємо локальний стан статей та сховище негайно, гарантуючи збереження
     setArticles((prev) => {
-      const exists = prev.some((a) => a.id === savedArticle.id);
+      const exists = prev.some((a) => a.id === article.id);
       const updated = exists
-        ? prev.map((a) => (a.id === savedArticle.id ? savedArticle : a))
-        : [savedArticle, ...prev];
+        ? prev.map((a) => (a.id === article.id ? article : a))
+        : [article, ...prev];
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
       } catch (e) {
@@ -1075,6 +1052,22 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
       }
       return updated;
     });
+
+    // 2. Зберігаємо у базу даних (Neon + сервер)
+    try {
+      const savedArticle = await saveArticleToCloud(article);
+      if (savedArticle && savedArticle.id) {
+        setArticles((prev) => {
+          const updated = prev.map((a) => (a.id === savedArticle.id ? savedArticle : a));
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+          } catch (e) {}
+          return updated;
+        });
+      }
+    } catch (err) {
+      console.warn('Cloud save notice:', err);
+    }
   };
 
   const handleDeleteArticle = async (id: string) => {

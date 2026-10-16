@@ -1,32 +1,38 @@
 [
   {
-    "id": "2",
-    "title": "Архітектура спостереження: як простір формує досвід",
-    "excerpt": "Чисті лінії, природне світло та відсутність візуального шуму як основа свідомого сприйняття навколишнього середовища.",
-    "content": "<p style=\"margin: 1em 0; line-height: 1.75;\">Простір <a href=\"https://theimpart.vercel.app/article/1790724998583\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"color: rgb(0, 137, 255); text-decoration: underline; text-underline-offset: 3px; font-weight: 500;\">навколо нас не є нейтральним</a>. Він або розсіює нашу увагу, або збирає її в одну фокусну точку. Архітектура, яка поважає людину, не намагається вразити масштабом — вона створює умови для внутрішнього діалогу.</p>\n\n<p style=\"margin: 1em 0; line-height: 1.75;\">Світло, що падає крізь високі вікна, текстура натурального каменю чи дерева, біла стіна, на якій грають тіні дерев у другій половині дня — це прості речі, що повертають відчуття присутності тут і тепер.</p>",
-    "category": "Архітектура",
+    "id": "1792187087557",
+    "title": "Нова тестова стаття",
+    "excerpt": "",
+    "content": "Тестовий контент",
+    "category": "Новини",
     "categories": [
-      "Архітектура"
+      "Новини"
     ],
-    "topics": [
-      "Архітектура"
-    ],
-    "author": "Олена Кравченко",
-    "coverImage": "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1400&q=80",
-    "date": "28 вересня 2026",
-    "createdAt": "2026-10-12T20:22:52.630Z",
+    "topics": [],
+    "author": "Редакція The Impart",
+    "date": "16 жовтня 2026 р.",
+    "createdAt": "2026-10-16T21:44:47.597Z",
     "published": true,
-    "titleEn": "The Architecture of Observation: How Space Shapes Experience",
-    "excerptEn": "Clean lines, natural light, and the absence of visual noise as the foundation of conscious environmental perception.",
-    "contentEn": "The space around us is never neutral. It either disperses our attention or gathers it into a single focal point. Architecture that respects the individual does not seek to overwhelm by scale — it creates conditions for interior dialogue.\n\nLight descending through tall windows, the texture of natural stone or wood, a white wall where tree shadows play in the late afternoon — these are simple elements that restore our sense of presence in the here and now.",
-    "categoryEn": "Architecture",
-    "categoriesEn": [
-      "Architecture"
+    "topicsEn": [],
+    "publishedEn": false
+  },
+  {
+    "id": "2",
+    "title": "Архітектура спостереження: ОНОВЛЕНО",
+    "excerpt": "",
+    "content": "Оновлений текст",
+    "category": "Архітектура, Новини",
+    "categories": [
+      "Архітектура",
+      "Новини"
     ],
-    "topicsEn": [
-      "Architecture"
-    ],
-    "publishedEn": true
+    "topics": [],
+    "author": "Редакція The Impart",
+    "date": "16 жовтня 2026 р.",
+    "createdAt": "2026-10-16T21:50:01.242Z",
+    "published": true,
+    "topicsEn": [],
+    "publishedEn": false
   },
   {
     "id": "1790724998583",

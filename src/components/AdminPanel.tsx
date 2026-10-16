@@ -460,50 +460,30 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       publishedEn: isPubEn,
     };
 
-    if (isEditor) {
-      if (onSaveDraft) {
-        const existingDraft = editingDraftId
-          ? drafts.find((d) => d.id === editingDraftId)
-          : null;
+    if (isEditor && onSaveDraft) {
+      const existingDraft = editingDraftId
+        ? drafts.find((d) => d.id === editingDraftId)
+        : null;
 
-        const draftPayload: ArticleDraft = {
-          id: editingDraftId || `draft-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-          type: isCreatingNew ? 'new' : 'update',
-          articleId: isCreatingNew ? undefined : finalArticle.id,
-          originalArticleTitle: isCreatingNew
-            ? undefined
-            : articles.find((a) => a.id === finalArticle.id)?.title || finalArticle.title,
-          authorUsername: username || 'editor',
-          authorDisplayName: userDisplayName || username || 'Редактор',
-          articleData: finalArticle,
-          createdAt: existingDraft?.createdAt || new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          status: 'pending',
-        };
+      const draftPayload: ArticleDraft = {
+        id: editingDraftId || `draft-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        type: isCreatingNew ? 'new' : 'update',
+        articleId: isCreatingNew ? undefined : finalArticle.id,
+        originalArticleTitle: isCreatingNew
+          ? undefined
+          : articles.find((a) => a.id === finalArticle.id)?.title || finalArticle.title,
+        authorUsername: username || 'editor',
+        authorDisplayName: userDisplayName || username || 'Редактор',
+        articleData: finalArticle,
+        createdAt: existingDraft?.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        status: 'pending',
+      };
 
-        try {
-          await onSaveDraft(draftPayload);
-          try {
-            localStorage.removeItem(`impart_autosave_${finalArticle.id}_ua`);
-            localStorage.removeItem(`impart_autosave_${finalArticle.id}_en`);
-            localStorage.removeItem(`impart_autosave_new_ua`);
-            localStorage.removeItem(`impart_autosave_new_en`);
-          } catch {}
-          showNotification(
-            isCreatingNew
-              ? 'Матеріал збережено як чорнетку та надіслано на модерацію адміністратору!'
-              : 'Зміни збережено як чорнетку та надіслано на модерацію! Опублікований матеріал на сайті залишився без змін.'
-          );
-          setEditingArticle(null);
-          setEditingDraftId(null);
-          setIsCreatingNew(false);
-        } catch (err: any) {
-          console.error('Save draft error:', err);
-          setErrorMsg(formatErrorMessage(err, 'Помилка збереження чернетки.'));
-        } finally {
-          setIsSaving(false);
-        }
-        return;
+      try {
+        await onSaveDraft(draftPayload);
+      } catch (err) {
+        console.warn('Draft sync notice:', err);
       }
     }
 
@@ -593,20 +573,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     showNotification(`Створено рубрику «${clean}»`);
   };
 
-  const handleSetPrimaryCategory = (catName: string, catNameEn?: string) => {
-    setEditingArticle((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        categories: [catName],
-        category: catName,
-        categoriesEn: catNameEn ? [catNameEn] : prev.categoriesEn,
-        categoryEn: catNameEn || prev.categoryEn,
-      };
-    });
-    showNotification(`Рубрику статті змінено на «${catName}»`);
-  };
-
   const handleToggleCategory = (catName: string, catNameEn?: string) => {
     setEditingArticle((prev) => {
       if (!prev) return prev;
@@ -623,30 +589,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           ? prev.categoryEn.split(',').map((s) => s.trim()).filter(Boolean)
           : [];
 
-      const exists = currentCats.includes(catName);
+      const exists = currentCats.some((c) => c.toLowerCase() === catName.toLowerCase());
       let nextCats: string[];
       let nextCatsEn: string[];
 
       if (exists) {
         if (currentCats.length <= 1) {
-          showNotification('Стаття повинна містити щонайменше одну рубрику. Оберіть іншу рубрику для заміни цієї.');
+          showNotification('Стаття повинна містити щонайменше одну рубрику.');
           return prev;
         }
-        nextCats = currentCats.filter((c) => c !== catName);
-        nextCatsEn = catNameEn ? currentCatsEn.filter((c) => c !== catNameEn) : currentCatsEn;
+        nextCats = currentCats.filter((c) => c.toLowerCase() !== catName.toLowerCase());
+        nextCatsEn = catNameEn
+          ? currentCatsEn.filter((c) => c.toLowerCase() !== catNameEn.toLowerCase())
+          : currentCatsEn;
       } else {
-        // Якщо раніше була лише одна рубрика, замінюємо її (миттєве перемикання рубрики в 1 клік)
-        if (currentCats.length === 1) {
-          nextCats = [catName];
-          nextCatsEn = catNameEn ? [catNameEn] : currentCatsEn;
-          showNotification(`Рубрику статті змінено на «${catName}»`);
-        } else {
-          nextCats = [...currentCats, catName];
-          nextCatsEn =
-            catNameEn && !currentCatsEn.includes(catNameEn)
-              ? [...currentCatsEn, catNameEn]
-              : currentCatsEn;
-        }
+        nextCats = [...currentCats, catName];
+        nextCatsEn =
+          catNameEn && !currentCatsEn.some((c) => c.toLowerCase() === catNameEn.toLowerCase())
+            ? [...currentCatsEn, catNameEn]
+            : currentCatsEn;
       }
 
       return {
@@ -675,7 +636,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           ? prev.category.split(',').map((s) => s.trim()).filter(Boolean)
           : [];
 
-      const exists = currentCatsEn.includes(enName);
+      const exists = currentCatsEn.some((c) => c.toLowerCase() === enName.toLowerCase());
       let nextCatsEn: string[];
       let nextCatsUa = currentCatsUa;
 
@@ -684,16 +645,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           showNotification('Article must have at least one category.');
           return prev;
         }
-        nextCatsEn = currentCatsEn.filter((c) => c !== enName);
+        nextCatsEn = currentCatsEn.filter((c) => c.toLowerCase() !== enName.toLowerCase());
       } else {
-        if (currentCatsEn.length === 1) {
-          nextCatsEn = [enName];
-          if (uaName) nextCatsUa = [uaName];
-        } else {
-          nextCatsEn = [...currentCatsEn, enName];
-          if (uaName && !currentCatsUa.includes(uaName)) {
-            nextCatsUa = [...currentCatsUa, uaName];
-          }
+        nextCatsEn = [...currentCatsEn, enName];
+        if (uaName && !currentCatsUa.some((c) => c.toLowerCase() === uaName.toLowerCase())) {
+          nextCatsUa = [...currentCatsUa, uaName];
         }
       }
 
@@ -1422,7 +1378,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     {/* Вибір рубрик зі списку */}
                     <div className="space-y-2.5">
                       <div className="text-[11px] text-neutral-500 flex items-center justify-between">
-                        <span>💡 Натисніть на рубрику, щоб встановити або змінити її для статті:</span>
+                        <span>💡 Натисніть на рубрики, щоб додати або зняти їх для статті (можна обрати кілька):</span>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {taxonomies.categories.map((cat) => {
@@ -1432,7 +1388,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                               : editingArticle.category
                               ? editingArticle.category.split(',').map((s) => s.trim()).filter(Boolean)
                               : [];
-                          const isSelected = currentCats.includes(cat.name);
+                          const isSelected = currentCats.some((c) => c.toLowerCase() === cat.name.toLowerCase());
                           return (
                             <button
                               key={cat.id}
@@ -1443,7 +1399,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                   ? 'bg-black text-white border-black shadow-xs ring-1 ring-black'
                                   : 'bg-white text-neutral-700 border-neutral-200 hover:border-neutral-400 hover:text-black'
                               }`}
-                              title={isSelected ? 'Натисніть для зміни або зняття' : `Змінити рубрику на «${cat.name}»`}
+                              title={isSelected ? 'Натисніть для зняття рубрики' : `Додати рубрику «${cat.name}»`}
                             >
                               {isSelected && <Check className="w-3.5 h-3.5 text-white" />}
                               <span>{cat.name}</span>
@@ -1816,7 +1772,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                               : editingArticle.categoryEn
                               ? editingArticle.categoryEn.split(',').map((s) => s.trim()).filter(Boolean)
                               : [];
-                          const isSelected = currentCatsEn.includes(enName);
+                          const isSelected = currentCatsEn.some((c) => c.toLowerCase() === enName.toLowerCase());
                           return (
                             <button
                               key={cat.id}
