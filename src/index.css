@@ -1,0 +1,588 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark, .dark *));
+
+html {
+  scrollbar-gutter: stable;
+}
+
+html.dark {
+  color-scheme: dark;
+  background-color: #222222;
+}
+
+html.dark body {
+  background-color: #222222;
+  color: #cbcbcb;
+}
+
+@keyframes titleSlideDown {
+  0% {
+    transform: translateY(-105%);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.3;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-title-slide-down {
+  animation: titleSlideDown 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.5s both;
+}
+
+/* Плавна поява сторінок та статей */
+@keyframes articleFadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-article-fade-in {
+  animation: articleFadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Делікатна поява карток статей */
+@keyframes cardSmoothFadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.995);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-card-fade-in {
+  animation: cardSmoothFadeIn 0.65s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* М'яка поява контенту */
+@keyframes pageContentFadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-page-fade-in {
+  animation: pageContentFadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Telegram Spoiler (Reader view: без сірого блоку та рамок, лише розмиття тексту) */
+.tg-spoiler {
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  padding: 0 !important;
+  cursor: pointer;
+  user-select: none;
+  filter: blur(5px);
+  transition: filter 0.25s ease;
+  display: inline;
+  vertical-align: baseline;
+}
+.tg-spoiler:hover {
+  filter: blur(3px);
+}
+.tg-spoiler.revealed,
+.tg-spoiler[data-revealed="true"] {
+  filter: none !important;
+  user-select: auto !important;
+}
+
+/* Telegram Spoiler у візуальному редакторі: автор ЧІТКО бачить текст і може його редагувати */
+[contenteditable="true"] .tg-spoiler {
+  filter: none !important;
+  user-select: auto !important;
+  cursor: text !important;
+  background: rgba(0, 137, 255, 0.08) !important;
+  border-bottom: 1.5px dotted #0089ff !important;
+  border-radius: 2px !important;
+  padding: 1px 3px !important;
+  display: inline;
+}
+
+/* Стиль посилань виключно в статтях та редакторі: колір #0089ff з дуже тонкою нижньою лінією підкреслення */
+.article-rendered-html a,
+.article-content a,
+.prose a,
+.article-link,
+[contenteditable="true"] a {
+  color: #0089ff !important;
+  text-decoration: underline !important;
+  text-decoration-color: rgba(0, 137, 255, 0.45) !important;
+  text-decoration-thickness: 1px !important;
+  text-underline-offset: 3px !important;
+  transition: text-decoration-color 0.15s ease, color 0.15s ease;
+}
+.article-rendered-html a:hover,
+.article-content a:hover,
+.prose a:hover,
+.article-link:hover,
+[contenteditable="true"] a:hover {
+  color: #0070d6 !important;
+  text-decoration-color: #0089ff !important;
+}
+
+/* У темній темі сайту колір посилань у статтях робимо світлішим для високої читабельності на фоні #222 */
+html.dark .article-rendered-html a,
+html.dark .article-content a,
+html.dark .prose a,
+html.dark .article-link {
+  color: #58b9ff !important;
+  text-decoration-color: rgba(88, 185, 255, 0.5) !important;
+}
+html.dark .article-rendered-html a:hover,
+html.dark .article-content a:hover,
+html.dark .prose a:hover,
+html.dark .article-link:hover {
+  color: #9cd5ff !important;
+  text-decoration-color: #58b9ff !important;
+}
+
+/* Іконки соцмереж у футері: виключення (сірий у спокої, чорний при наведенні) */
+.footer-social-link,
+.footer-social-link:visited {
+  color: #9ca3af !important;
+  text-decoration: none !important;
+}
+.footer-social-link:hover,
+.footer-social-link:focus,
+.footer-social-link:active {
+  color: #000000 !important;
+  text-decoration: none !important;
+}
+
+/* Callout Blocks */
+.callout-box {
+  margin: 1.5rem 0;
+  padding: 1.25rem;
+  border-radius: 0.5rem;
+  border-left-width: 4px;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+.callout-info {
+  border-left-color: #38bdf8;
+  background-color: rgba(240, 249, 255, 0.95);
+  color: #082f49;
+}
+.callout-warning {
+  border-left-color: #fbbf24;
+  background-color: rgba(254, 252, 232, 0.95);
+  color: #451a03;
+}
+.callout-success {
+  border-left-color: #34d399;
+  background-color: rgba(236, 253, 245, 0.95);
+  color: #064e3b;
+}
+.callout-danger {
+  border-left-color: #f87171;
+  background-color: rgba(254, 242, 242, 0.95);
+  color: #450a0a;
+}
+.callout-dark {
+  border-left-color: #171717;
+  background-color: #171717;
+  color: #fafafa;
+}
+.callout-quote {
+  border-left-color: #737373;
+  background-color: #fafafa;
+  color: #171717;
+}
+
+/* Article Table */
+.article-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.875rem;
+  border: 1px solid #e5e7eb;
+}
+.article-table th {
+  background-color: #f9fafb;
+  border: 1px solid #e5e7eb;
+  padding: 0.625rem 0.875rem;
+  text-align: left;
+  font-weight: 600;
+  color: #111827;
+}
+.article-table td {
+  border: 1px solid #e5e7eb;
+  padding: 0.625rem 0.875rem;
+  color: #374151;
+}
+.article-table tbody tr:nth-child(even) {
+  background-color: rgba(249, 250, 251, 0.6);
+}
+
+/* ========================================================================== */
+/* СТИЛІ ВІЗУАЛЬНОГО РЕДАКТОРА (WYSIWYG) ТА ЧИТАЦЬКОГО ВІДОБРАЖЕННЯ СТАТЕЙ    */
+/* ========================================================================== */
+
+/* Заголовки */
+[contenteditable="true"] h1,
+[contenteditable="true"] h2,
+.article-rendered-html h1,
+.article-rendered-html h2 {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-size: 1.85rem !important;
+  font-weight: 700 !important;
+  line-height: 1.25 !important;
+  margin-top: 1.75rem !important;
+  margin-bottom: 0.75rem !important;
+  color: #0a0a0a !important;
+  letter-spacing: -0.01em !important;
+  display: block !important;
+}
+
+[contenteditable="true"] h3,
+.article-rendered-html h3 {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-size: 1.45rem !important;
+  font-weight: 600 !important;
+  line-height: 1.35 !important;
+  margin-top: 1.5rem !important;
+  margin-bottom: 0.6rem !important;
+  color: #171717 !important;
+  display: block !important;
+}
+
+[contenteditable="true"] h4,
+.article-rendered-html h4 {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+  font-size: 1.18rem !important;
+  font-weight: 600 !important;
+  line-height: 1.4 !important;
+  margin-top: 1.25rem !important;
+  margin-bottom: 0.5rem !important;
+  color: #262626 !important;
+  display: block !important;
+}
+
+/* Абзаци */
+[contenteditable="true"] p,
+.article-rendered-html p {
+  margin-top: 0.85rem !important;
+  margin-bottom: 0.85rem !important;
+  line-height: 1.8 !important;
+}
+
+/* Списки (Марковані та Нумеровані) */
+[contenteditable="true"] ul,
+.article-rendered-html ul {
+  list-style-type: disc !important;
+  padding-left: 2rem !important;
+  margin-top: 1rem !important;
+  margin-bottom: 1rem !important;
+}
+
+[contenteditable="true"] ol,
+.article-rendered-html ol {
+  list-style-type: decimal !important;
+  padding-left: 2rem !important;
+  margin-top: 1rem !important;
+  margin-bottom: 1rem !important;
+}
+
+[contenteditable="true"] li,
+.article-rendered-html li {
+  display: list-item !important;
+  margin-top: 0.4rem !important;
+  margin-bottom: 0.4rem !important;
+  padding-left: 0.25rem !important;
+  line-height: 1.65 !important;
+}
+
+/* Цитати */
+[contenteditable="true"] blockquote,
+.article-rendered-html blockquote {
+  border-left: 3.5px solid #000000 !important;
+  padding-left: 1.25rem !important;
+  padding-top: 0.25rem !important;
+  padding-bottom: 0.25rem !important;
+  margin-top: 1.5rem !important;
+  margin-bottom: 1.5rem !important;
+  font-style: italic !important;
+  color: #374151 !important;
+}
+
+/* Розділювачі */
+[contenteditable="true"] hr,
+.article-rendered-html hr {
+  border: 0 !important;
+  border-top: 1px solid #e5e7eb !important;
+  margin: 2.25rem 0 !important;
+}
+
+/* Код */
+[contenteditable="true"] code,
+.article-rendered-html code {
+  background: #f4f4f5 !important;
+  padding: 2px 6px !important;
+  border-radius: 4px !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+  font-size: 0.88em !important;
+  color: #09090b !important;
+}
+
+/* Виділення маркером (Highlighter) */
+[contenteditable="true"] mark,
+.article-rendered-html mark {
+  padding: 2px 5px !important;
+  border-radius: 3px !important;
+}
+
+/* Медіа та зображення */
+[contenteditable="true"] figure,
+.article-rendered-html figure {
+  margin: 1.75rem 0 !important;
+  text-align: center !important;
+}
+[contenteditable="true"] figure img,
+.article-rendered-html figure img {
+  max-width: 100% !important;
+  max-height: 600px !important;
+  border-radius: 8px !important;
+  margin: 0 auto !important;
+  display: block !important;
+}
+[contenteditable="true"] figcaption,
+.article-rendered-html figcaption {
+  font-size: 0.85rem !important;
+  color: #6b7280 !important;
+  font-style: italic !important;
+  margin-top: 0.5rem !important;
+  text-align: center !important;
+}
+
+/* Підказка (placeholder) для порожнього візуального редактора */
+[contenteditable="true"]:empty::before {
+  content: attr(data-placeholder);
+  color: #9ca3af;
+  pointer-events: none;
+  font-style: italic;
+  display: block;
+}
+
+/* ========================================================================== */
+/* ТЕМНА ТЕМА: КОЛІРНА ГАМА ТА СТИЛІ ЕЛЕМЕНТІВ                                */
+/* ========================================================================== */
+
+/* Шапка та Футер сайту: відсутність ліній розділення між header, body та footer */
+.site-header,
+.site-footer {
+  border: none !important;
+  border-top: none !important;
+  border-bottom: none !important;
+  box-shadow: none !important;
+}
+
+/* Шапка та Футер сайту: майже чорні, дуже темно-сірі HEX #111 */
+html.dark .site-header,
+html.dark .site-footer {
+  background-color: #111111 !important;
+  color: #cbcbcb !important;
+  border: none !important;
+}
+
+/* Світліший колір посилань в статтях для темної теми */
+html.dark .article-rendered-html a,
+html.dark .article-content a,
+html.dark .prose a,
+html.dark .article-link {
+  color: #85c1ff !important;
+  text-decoration-color: rgba(133, 193, 255, 0.45) !important;
+}
+html.dark .article-rendered-html a:hover,
+html.dark .article-content a:hover,
+html.dark .prose a:hover,
+html.dark .article-link:hover {
+  color: #bde0fe !important;
+  text-decoration-color: #bde0fe !important;
+}
+
+/* Соціальні мережі у футері в темній темі */
+html.dark .footer-social-link,
+html.dark .footer-social-link:visited {
+  color: #888888 !important;
+}
+html.dark .footer-social-link:hover,
+html.dark .footer-social-link:focus,
+html.dark .footer-social-link:active {
+  color: #ffffff !important;
+}
+
+/* Заголовки статей у темній темі */
+html.dark .article-rendered-html h1,
+html.dark .article-rendered-html h2 {
+  color: #f5f5f5 !important;
+}
+
+html.dark .article-rendered-html h3 {
+  color: #ececec !important;
+}
+
+html.dark .article-rendered-html h4 {
+  color: #e0e0e0 !important;
+}
+
+/* Захист від жорстко закодованих чорних інлайн-кольорів у темній темі */
+html.dark:not(.light) .article-rendered-html [style*="rgb(23, 23, 23)"],
+html.dark:not(.light) .article-rendered-html [style*="rgb(23,23,23)"],
+html.dark:not(.light) .article-rendered-html [style*="#171717"],
+html.dark:not(.light) .article-rendered-html [style*="#0a0a0a"],
+html.dark:not(.light) .article-rendered-html [style*="#000000"] {
+  color: #ececec !important;
+}
+
+/* Текст абзаців та списків у темній темі: HEX #cbcbcb */
+html.dark .article-rendered-html p,
+html.dark .article-rendered-html li {
+  color: #cbcbcb !important;
+}
+
+/* Цитати у темній темі */
+html.dark .article-rendered-html blockquote {
+  border-left-color: #cbcbcb !important;
+  color: #e0e0e0 !important;
+  background-color: rgba(255, 255, 255, 0.03) !important;
+}
+
+/* Розділювачі у темній темі */
+html.dark .article-rendered-html hr {
+  border-top-color: #333333 !important;
+}
+
+/* Вбудований код у темній темі */
+html.dark .article-rendered-html code {
+  background: #181818 !important;
+  color: #e5e5e5 !important;
+  border-color: #333333 !important;
+}
+
+/* Таблиці у темній темі */
+html.dark .article-table {
+  border-color: #333333 !important;
+}
+
+html.dark .article-table th {
+  background-color: #161616 !important;
+  border-color: #333333 !important;
+  color: #f5f5f5 !important;
+}
+
+html.dark .article-table td {
+  border-color: #333333 !important;
+  color: #cbcbcb !important;
+}
+
+html.dark .article-table tbody tr:nth-child(even) {
+  background-color: rgba(255, 255, 255, 0.03) !important;
+}
+
+/* Підписи до зображень у темній темі */
+html.dark .article-rendered-html figcaption {
+  color: #999999 !important;
+}
+
+/* Callout блоки в темній темі */
+html.dark .callout-info {
+  background-color: rgba(14, 116, 144, 0.22) !important;
+  color: #e0f2fe !important;
+}
+html.dark .callout-warning {
+  background-color: rgba(161, 98, 7, 0.22) !important;
+  color: #fef08a !important;
+}
+html.dark .callout-success {
+  background-color: rgba(4, 120, 87, 0.22) !important;
+  color: #a7f3d0 !important;
+}
+html.dark .callout-danger {
+  background-color: rgba(185, 28, 28, 0.22) !important;
+  color: #fecaca !important;
+}
+html.dark .callout-dark {
+  background-color: #141414 !important;
+  border-left-color: #555555 !important;
+  color: #cbcbcb !important;
+}
+html.dark .callout-quote {
+  background-color: #1a1a1a !important;
+  border-left-color: #777777 !important;
+  color: #cbcbcb !important;
+}
+
+/* ========================================================================== */
+/* АДМІН-ПАНЕЛЬ: ВИКЛЮЧНО СВІТЛА ТЕМА ТА ЧІТКИЙ ШРИФТ                         */
+/* ========================================================================== */
+[data-theme="light"],
+.admin-scope,
+.light-theme {
+  color-scheme: light !important;
+}
+
+[data-theme="light"] header,
+.admin-scope header {
+  background-color: #ffffff !important;
+  color: #111827 !important;
+}
+
+/* Візуальний редактор в адмінці: біле полотно, чіткий майже чорний шрифт */
+[data-theme="light"] [contenteditable="true"],
+.admin-scope [contenteditable="true"] {
+  background-color: #ffffff !important;
+  color: #111827 !important;
+}
+
+[data-theme="light"] [contenteditable="true"] p,
+[data-theme="light"] [contenteditable="true"] li,
+.admin-scope [contenteditable="true"] p,
+.admin-scope [contenteditable="true"] li {
+  color: #1f2937 !important;
+}
+
+[data-theme="light"] [contenteditable="true"] h1,
+[data-theme="light"] [contenteditable="true"] h2,
+.admin-scope [contenteditable="true"] h1,
+.admin-scope [contenteditable="true"] h2 {
+  color: #0a0a0a !important;
+}
+
+[data-theme="light"] [contenteditable="true"] h3,
+.admin-scope [contenteditable="true"] h3 {
+  color: #171717 !important;
+}
+
+[data-theme="light"] [contenteditable="true"] h4,
+.admin-scope [contenteditable="true"] h4 {
+  color: #262626 !important;
+}
+
+[data-theme="light"] input,
+[data-theme="light"] textarea,
+[data-theme="light"] select,
+.admin-scope input,
+.admin-scope textarea,
+.admin-scope select {
+  color: #111827 !important;
+  background-color: #ffffff !important;
+}
+
+

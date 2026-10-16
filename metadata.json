@@ -1,0 +1,8 @@
+{
+  "name": "TheImpart",
+  "description": "Простір знань про технології та культуру. A knowledge space for tech and culture.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
