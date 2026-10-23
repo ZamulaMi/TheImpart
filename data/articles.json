@@ -1,5 +1,35 @@
 [
   {
+    "id": "1792793653820",
+    "title": "Заголовок статті нова 2",
+    "excerpt": "Короткий опис",
+    "showExcerptInArticle": true,
+    "content": "Якийсь текст",
+    "category": "Статті",
+    "categories": [
+      "Статті"
+    ],
+    "topics": [
+      "Усвідомленість"
+    ],
+    "author": "Редакція The Impart",
+    "date": "24 жовтня 2026 р.",
+    "createdAt": "2026-10-23T22:14:59.251Z",
+    "updatedAt": "2026-10-23T22:24:02.950Z",
+    "published": true,
+    "showExcerptInArticleEn": true,
+    "categoryEn": "Essay, Articles",
+    "categoriesEn": [
+      "Essay",
+      "Articles"
+    ],
+    "topicsEn": [
+      "Mindfulness"
+    ],
+    "publishedEn": false,
+    "views": 2
+  },
+  {
     "id": "1792791226628",
     "title": "Заголовок статті новий",
     "excerpt": "Короткий опис",
@@ -16,7 +46,7 @@
     "coverImage": "https://cdn.magicdecor.in/com/2023/02/29234001/image-1682163782-1982.jpg",
     "date": "24 жовтня 2026 р.",
     "createdAt": "2026-10-23T21:35:00.470Z",
-    "updatedAt": "2026-10-23T21:45:38.218Z",
+    "updatedAt": "2026-10-23T22:14:05.613Z",
     "published": true,
     "showExcerptInArticleEn": true,
     "categoryEn": "Essay, News",
@@ -28,7 +58,7 @@
       "Minimalism"
     ],
     "publishedEn": false,
-    "views": 2
+    "views": 3
   },
   {
     "id": "1792602023813",

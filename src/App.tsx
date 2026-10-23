@@ -833,6 +833,12 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
       .map((a): Article => ({
         ...a,
         id: String(a.id),
+        showExcerptInArticle: a.showExcerptInArticle !== undefined
+          ? (a.showExcerptInArticle === true || String(a.showExcerptInArticle) === 'true')
+          : true,
+        showExcerptInArticleEn: a.showExcerptInArticleEn !== undefined
+          ? (a.showExcerptInArticleEn === true || String(a.showExcerptInArticleEn) === 'true')
+          : undefined,
         topics: Array.isArray(a.topics)
           ? a.topics.map((t: any) => String(t).trim().replace(/^#+/, '')).filter(Boolean)
           : typeof a.topics === 'string' && a.topics.trim()

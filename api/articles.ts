@@ -274,16 +274,18 @@ export async function getArticles(): Promise<Article[]> {
               const catsEnJson = a.categoriesEn ? JSON.stringify(a.categoriesEn) : (a.categoryEn ? JSON.stringify([a.categoryEn]) : null);
               const topJson = a.topics && a.topics.length > 0 ? JSON.stringify(a.topics) : '[]';
               const topEnJson = a.topicsEn && a.topicsEn.length > 0 ? JSON.stringify(a.topicsEn) : '[]';
+              const showExcerpt = a.showExcerptInArticle !== false && String(a.showExcerptInArticle) !== 'false';
+              const showExcerptEn = a.showExcerptInArticleEn !== undefined ? (a.showExcerptInArticleEn !== false && String(a.showExcerptInArticleEn) !== 'false') : showExcerpt;
               await sql`
                 INSERT INTO articles (
-                  id, title, excerpt, content, category, author, cover_image, date, read_time, published,
-                  title_en, excerpt_en, content_en, category_en, published_en,
+                  id, title, excerpt, show_excerpt_in_article, content, category, author, cover_image, date, read_time, published,
+                  title_en, excerpt_en, show_excerpt_in_article_en, content_en, category_en, published_en,
                   categories, categories_en, topics, topics_en
                 )
                 VALUES (
-                  ${a.id}, ${a.title}, ${a.excerpt}, ${a.content}, ${a.category}, ${a.author},
+                  ${a.id}, ${a.title}, ${a.excerpt}, ${showExcerpt}, ${a.content}, ${a.category}, ${a.author},
                   ${a.coverImage || null}, ${a.date}, ${a.readTime || null}, ${a.published},
-                  ${a.titleEn || null}, ${a.excerptEn || null}, ${a.contentEn || null},
+                  ${a.titleEn || null}, ${a.excerptEn || null}, ${showExcerptEn}, ${a.contentEn || null},
                   ${a.categoryEn || null}, ${a.publishedEn ?? false},
                   ${catsJson}, ${catsEnJson}, ${topJson}, ${topEnJson}
                 )
@@ -559,6 +561,9 @@ export default async function handler(req: any, res: any) {
         id: body.id ? String(body.id) : Date.now().toString(),
         title: String(body.title).trim(),
         excerpt: body.excerpt ? String(body.excerpt).trim() : '',
+        showExcerptInArticle: body.showExcerptInArticle !== undefined
+          ? (body.showExcerptInArticle === true || String(body.showExcerptInArticle) === 'true')
+          : true,
         content: body.content ? String(body.content).trim() : '',
         category: body.category ? String(body.category).trim() : 'Загальне',
         categories: parseJsonArray(body.categories) || (body.category ? body.category.split(',').map((s: string) => s.trim()).filter(Boolean) : ['Загальне']),
@@ -573,6 +578,9 @@ export default async function handler(req: any, res: any) {
         // Англійські поля
         titleEn: body.titleEn ? String(body.titleEn).trim() : undefined,
         excerptEn: body.excerptEn ? String(body.excerptEn).trim() : undefined,
+        showExcerptInArticleEn: body.showExcerptInArticleEn !== undefined
+          ? (body.showExcerptInArticleEn === true || String(body.showExcerptInArticleEn) === 'true')
+          : undefined,
         contentEn: body.contentEn ? String(body.contentEn).trim() : undefined,
         categoryEn: body.categoryEn ? String(body.categoryEn).trim() : undefined,
         categoriesEn: parseJsonArray(body.categoriesEn) || (body.categoryEn ? body.categoryEn.split(',').map((s: string) => s.trim()).filter(Boolean) : undefined),

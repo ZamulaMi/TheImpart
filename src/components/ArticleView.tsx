@@ -160,9 +160,16 @@ export const ArticleView: React.FC<ArticleViewProps> = ({
   const title = isEn && hasEnVersion ? article.titleEn! : article.title;
   const content = isEn && hasEnVersion ? article.contentEn! : article.content;
   const excerpt = isEn && hasEnVersion ? article.excerptEn : article.excerpt;
+  const isExcerptVisible = (val: any, fallback = true): boolean => {
+    if (val === undefined || val === null) return fallback;
+    if (val === false || val === 'false' || val === 0 || val === '0') return false;
+    if (val === true || val === 'true' || val === 1 || val === '1') return true;
+    return fallback;
+  };
+
   const showExcerpt = isEn && hasEnVersion
-    ? (article.showExcerptInArticleEn !== undefined ? article.showExcerptInArticleEn : article.showExcerptInArticle !== false)
-    : (article.showExcerptInArticle !== false);
+    ? isExcerptVisible(article.showExcerptInArticleEn, isExcerptVisible(article.showExcerptInArticle, true))
+    : isExcerptVisible(article.showExcerptInArticle, true);
   const categoriesList = isEn && hasEnVersion
     ? (article.categoriesEn && article.categoriesEn.length > 0
         ? article.categoriesEn

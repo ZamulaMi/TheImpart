@@ -78,6 +78,13 @@ interface AdminPanelProps {
   onRefreshDrafts?: () => Promise<void>;
 }
 
+function parseShowExcerpt(val: any, fallback = true): boolean {
+  if (val === undefined || val === null) return fallback;
+  if (val === false || val === 'false' || val === 0 || val === '0') return false;
+  if (val === true || val === 'true' || val === 1 || val === '1') return true;
+  return fallback;
+}
+
 export const AdminPanel: React.FC<AdminPanelProps> = ({
   articles: rawArticles = [],
   onSaveArticle,
@@ -300,8 +307,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
     setEditingArticle({
       ...article,
-      showExcerptInArticle: article.showExcerptInArticle !== false,
-      showExcerptInArticleEn: article.showExcerptInArticleEn !== undefined ? article.showExcerptInArticleEn : (article.showExcerptInArticle !== false),
+      showExcerptInArticle: parseShowExcerpt(article.showExcerptInArticle, true),
+      showExcerptInArticleEn: article.showExcerptInArticleEn !== undefined
+        ? parseShowExcerpt(article.showExcerptInArticleEn, true)
+        : parseShowExcerpt(article.showExcerptInArticle, true),
       categories: initialCats,
       categoriesEn: initialCatsEn,
       topics: initialTopics,
@@ -352,8 +361,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
     setEditingArticle({
       ...art,
-      showExcerptInArticle: art?.showExcerptInArticle !== false,
-      showExcerptInArticleEn: art?.showExcerptInArticleEn !== undefined ? art.showExcerptInArticleEn : (art?.showExcerptInArticle !== false),
+      showExcerptInArticle: parseShowExcerpt(art?.showExcerptInArticle, true),
+      showExcerptInArticleEn: art?.showExcerptInArticleEn !== undefined
+        ? parseShowExcerpt(art.showExcerptInArticleEn, true)
+        : parseShowExcerpt(art?.showExcerptInArticle, true),
       categories: initialCats,
       categoriesEn: initialCatsEn,
       topics: initialTopics,
@@ -470,7 +481,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       // Українська версія
       title: editingArticle.title.trim(),
       excerpt: editingArticle.excerpt?.trim() || '',
-      showExcerptInArticle: editingArticle.showExcerptInArticle !== false,
+      showExcerptInArticle: parseShowExcerpt(editingArticle.showExcerptInArticle, true),
       content: editingArticle.content?.trim() || '',
       category:
         editingArticle.categories && editingArticle.categories.length > 0
@@ -493,7 +504,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       // Англійська версія
       titleEn: editingArticle.titleEn?.trim() || undefined,
       excerptEn: editingArticle.excerptEn?.trim() || undefined,
-      showExcerptInArticleEn: editingArticle.showExcerptInArticleEn !== undefined ? editingArticle.showExcerptInArticleEn : (editingArticle.showExcerptInArticle !== false),
+      showExcerptInArticleEn: editingArticle.showExcerptInArticleEn !== undefined
+        ? parseShowExcerpt(editingArticle.showExcerptInArticleEn, true)
+        : parseShowExcerpt(editingArticle.showExcerptInArticle, true),
       contentEn: editingArticle.contentEn?.trim() || undefined,
       categoryEn:
         editingArticle.categoriesEn && editingArticle.categoriesEn.length > 0
@@ -1787,7 +1800,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       <label className="inline-flex items-center gap-2 cursor-pointer select-none text-xs text-neutral-700 hover:text-black">
                         <input
                           type="checkbox"
-                          checked={editingArticle.showExcerptInArticle !== false}
+                          checked={parseShowExcerpt(editingArticle.showExcerptInArticle, true)}
                           onChange={(e) => setEditingArticle((prev) => (prev ? { ...prev, showExcerptInArticle: e.target.checked } : prev))}
                           className="w-4 h-4 rounded border-neutral-300 text-black focus:ring-black cursor-pointer accent-black"
                         />
@@ -1804,7 +1817,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       className="w-full text-sm border border-neutral-200 p-3 focus:border-black focus:outline-none transition-colors resize-none"
                     />
                     <p className="text-[11px] text-neutral-400">
-                      {editingArticle.showExcerptInArticle !== false
+                      {parseShowExcerpt(editingArticle.showExcerptInArticle, true)
                         ? '✓ Короткий опис буде показано у статті курсивом перед основним текстом'
                         : '✕ Короткий опис приховано у статті (відображатиметься лише у картках статей на головній та в рубриках)'}
                     </p>
@@ -2188,7 +2201,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       <label className="inline-flex items-center gap-2 cursor-pointer select-none text-xs text-neutral-700 hover:text-black">
                         <input
                           type="checkbox"
-                          checked={editingArticle.showExcerptInArticleEn !== undefined ? editingArticle.showExcerptInArticleEn : (editingArticle.showExcerptInArticle !== false)}
+                          checked={editingArticle.showExcerptInArticleEn !== undefined ? parseShowExcerpt(editingArticle.showExcerptInArticleEn, true) : parseShowExcerpt(editingArticle.showExcerptInArticle, true)}
                           onChange={(e) => setEditingArticle((prev) => (prev ? { ...prev, showExcerptInArticleEn: e.target.checked } : prev))}
                           className="w-4 h-4 rounded border-neutral-300 text-black focus:ring-black cursor-pointer accent-black"
                         />
@@ -2205,7 +2218,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       className="w-full text-sm border border-neutral-200 p-3 focus:border-black focus:outline-none transition-colors resize-none"
                     />
                     <p className="text-[11px] text-neutral-400">
-                      {(editingArticle.showExcerptInArticleEn !== undefined ? editingArticle.showExcerptInArticleEn : (editingArticle.showExcerptInArticle !== false))
+                      {(editingArticle.showExcerptInArticleEn !== undefined ? parseShowExcerpt(editingArticle.showExcerptInArticleEn, true) : parseShowExcerpt(editingArticle.showExcerptInArticle, true))
                         ? '✓ Excerpt will be shown at the beginning of the article before content'
                         : '✕ Excerpt hidden in article (only used for preview cards in feed)'}
                     </p>
