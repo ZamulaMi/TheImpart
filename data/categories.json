@@ -1,0 +1,54 @@
+[
+  {
+    "id": "cat-nav-articles",
+    "slug": "articles",
+    "name": "Статті",
+    "nameEn": "Articles",
+    "rubrics": [
+      "Статті",
+      "Стаття",
+      "Есе",
+      "Філософія",
+      "Архітектура",
+      "Естетика",
+      "Мистецтво",
+      "Дизайн",
+      "Культура",
+      "Загальне"
+    ],
+    "rubricsEn": [
+      "Articles",
+      "Article",
+      "Essays",
+      "Essay",
+      "Philosophy",
+      "Architecture",
+      "Aesthetics",
+      "Art",
+      "Design",
+      "Culture"
+    ],
+    "topics": [],
+    "topicsEn": [],
+    "order": 0
+  },
+  {
+    "id": "cat-nav-reviews",
+    "slug": "reviews",
+    "name": "Огляди",
+    "nameEn": "Reviews",
+    "rubrics": [
+      "Огляди",
+      "Огляд",
+      "Обзори",
+      "Обзор"
+    ],
+    "rubricsEn": [
+      "Reviews",
+      "Review"
+    ],
+    "topics": [],
+    "topicsEn": [],
+    "order": 1
+  }
+]
