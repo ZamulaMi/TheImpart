@@ -1,30 +1,66 @@
 [
   {
+    "id": "1792791226628",
+    "title": "Заголовок статті новий",
+    "excerpt": "Короткий опис",
+    "showExcerptInArticle": true,
+    "content": "<div bis_skin_checked=\"1\">Apple може збільшити внутрішній дисплей iPhone Duo приблизно на півдюйма – таку інформацію отримав журналіст Bloomberg Марк Ґурман. Зміна торкнеться лише розміру екрана, а не лінійки загалом: жодного окремого “Max”-варіанта не планується.</div><div bis_skin_checked=\"1\"><br></div><div bis_skin_checked=\"1\">Ґурман поділився цими відомостями у своєму подкасті Power On. За його словами, <span class=\"tg-spoiler\" data-spoiler=\"true\">він “чув”, що Apple “розглядає” ідею майбутнього iPhone Duo з більшим внутрішнім дисплеєм. Нинішня модель має 7,6-дюймовий внутрішній екран і 5,4-дюймовий зовнішній.</span></div><div bis_skin_checked=\"1\"><br></div><div bis_skin_checked=\"1\">Точних параметрів Ґурман не називає, однак орієнтовний діапазон, за його даними, – від 7,9 до 8,1 дюйма. Він також уточнює, що збільшена версія залишиться в межах тієї самої лінійки iPhone Duo, а не стане окремою моделлю.</div>",
+    "category": "Новини",
+    "categories": [
+      "Новини"
+    ],
+    "topics": [
+      "Мінімалізм"
+    ],
+    "author": "Редакція The Impart",
+    "coverImage": "https://cdn.magicdecor.in/com/2023/02/29234001/image-1682163782-1982.jpg",
+    "date": "24 жовтня 2026 р.",
+    "createdAt": "2026-10-23T21:35:00.470Z",
+    "updatedAt": "2026-10-23T21:45:38.218Z",
+    "published": true,
+    "showExcerptInArticleEn": true,
+    "categoryEn": "Essay, News",
+    "categoriesEn": [
+      "Essay",
+      "News"
+    ],
+    "topicsEn": [
+      "Minimalism"
+    ],
+    "publishedEn": false,
+    "views": 2
+  },
+  {
     "id": "1792602023813",
     "title": "Тестова стаття 20:00",
     "excerpt": "",
-    "content": "",
+    "showExcerptInArticle": true,
+    "content": "<div bis_skin_checked=\"1\"></div><span style=\"font-family: -apple-system, BlinkMacSystemFont, sans-serif;\"><div bis_skin_checked=\"1\">Apple може збільшити внутрішній дисплей iPhone Duo приблизно на півдюйма – таку інформацію отримав журналіст Bloomberg Марк Ґурман. Зміна торкнеться лише розміру екрана, а не лінійки загалом: жодного окремого “Max”-варіанта не планується.</div><div bis_skin_checked=\"1\"><br></div><div bis_skin_checked=\"1\">Ґурман поділився цими відомостями у своєму подкасті Power On. За його словами, він “чув”, що Apple “розглядає” ідею майбутнього iPhone Duo з більшим внутрішнім дисплеєм. Нинішня модель має 7,6-дюймовий внутрішній екран і 5,4-дюймовий зовнішній.</div><div bis_skin_checked=\"1\"><br></div><div bis_skin_checked=\"1\">Точних параметрів Ґурман не називає, однак орієнтовний діапазон, за його даними, – від 7,9 до 8,1 дюйма. Він також уточнює, що збільшена версія залишиться в межах тієї самої лінійки iPhone Duo, а не стане окремою моделлю.</div></span><div bis_skin_checked=\"1\"></div>",
     "category": "Есе",
     "categories": [
       "Есе"
     ],
     "topics": [],
     "author": "Редакція The Impart",
+    "coverImage": "https://cdn.magicdecor.in/com/2023/02/29234001/image-1682163782-1982.jpg",
     "date": "21 жовтня 2026 р.",
     "createdAt": "2026-10-21T17:00:37.705Z",
+    "updatedAt": "2026-10-23T20:38:05.728Z",
     "published": true,
+    "showExcerptInArticleEn": true,
     "categoryEn": "Essay",
     "categoriesEn": [
       "Essay"
     ],
     "topicsEn": [],
     "publishedEn": false,
-    "views": 3
+    "views": 11
   },
   {
     "id": "1792589447296",
     "title": "Тестова стаття 17:15",
     "excerpt": "Короткий опис",
+    "showExcerptInArticle": true,
     "content": "Текст",
     "category": "Новини",
     "categories": [
@@ -34,10 +70,12 @@
       "Усвідомленість"
     ],
     "author": "Редакція The Impart",
+    "coverImage": "https://cdn.magicdecor.in/com/2023/02/29234001/image-1682163782-1982.jpg",
     "date": "21 жовтня 2026 р.",
     "createdAt": "2026-10-21T14:14:15.519Z",
-    "updatedAt": "2026-10-21T14:15:45.689Z",
+    "updatedAt": "2026-10-23T15:19:13.398Z",
     "published": true,
+    "showExcerptInArticleEn": true,
     "categoryEn": "Essay, News",
     "categoriesEn": [
       "Essay",
@@ -47,6 +85,6 @@
       "Mindfulness"
     ],
     "publishedEn": false,
-    "views": 16
+    "views": 22
   }
 ]

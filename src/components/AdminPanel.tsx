@@ -241,6 +241,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       id: Date.now().toString(),
       title: '',
       excerpt: '',
+      showExcerptInArticle: true,
       content: '',
       category: 'Есе',
       categories: ['Есе'],
@@ -251,6 +252,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       published: true,
       titleEn: '',
       excerptEn: '',
+      showExcerptInArticleEn: true,
       contentEn: '',
       categoryEn: 'Essay',
       categoriesEn: ['Essay'],
@@ -298,6 +300,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
     setEditingArticle({
       ...article,
+      showExcerptInArticle: article.showExcerptInArticle !== false,
+      showExcerptInArticleEn: article.showExcerptInArticleEn !== undefined ? article.showExcerptInArticleEn : (article.showExcerptInArticle !== false),
       categories: initialCats,
       categoriesEn: initialCatsEn,
       topics: initialTopics,
@@ -348,6 +352,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
     setEditingArticle({
       ...art,
+      showExcerptInArticle: art?.showExcerptInArticle !== false,
+      showExcerptInArticleEn: art?.showExcerptInArticleEn !== undefined ? art.showExcerptInArticleEn : (art?.showExcerptInArticle !== false),
       categories: initialCats,
       categoriesEn: initialCatsEn,
       topics: initialTopics,
@@ -464,6 +470,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       // Українська версія
       title: editingArticle.title.trim(),
       excerpt: editingArticle.excerpt?.trim() || '',
+      showExcerptInArticle: editingArticle.showExcerptInArticle !== false,
       content: editingArticle.content?.trim() || '',
       category:
         editingArticle.categories && editingArticle.categories.length > 0
@@ -486,6 +493,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       // Англійська версія
       titleEn: editingArticle.titleEn?.trim() || undefined,
       excerptEn: editingArticle.excerptEn?.trim() || undefined,
+      showExcerptInArticleEn: editingArticle.showExcerptInArticleEn !== undefined ? editingArticle.showExcerptInArticleEn : (editingArticle.showExcerptInArticle !== false),
       contentEn: editingArticle.contentEn?.trim() || undefined,
       categoryEn:
         editingArticle.categoriesEn && editingArticle.categoriesEn.length > 0
@@ -1771,10 +1779,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   </div>
 
                   {/* Короткий опис UA */}
-                  <div>
-                    <label className="block text-xs uppercase tracking-wider text-neutral-500 mb-2">
-                      Короткий опис (для списку на головній)
-                    </label>
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <label className="block text-xs uppercase tracking-wider text-neutral-500 font-medium">
+                        Короткий опис (для списку на головній)
+                      </label>
+                      <label className="inline-flex items-center gap-2 cursor-pointer select-none text-xs text-neutral-700 hover:text-black">
+                        <input
+                          type="checkbox"
+                          checked={editingArticle.showExcerptInArticle !== false}
+                          onChange={(e) => setEditingArticle((prev) => (prev ? { ...prev, showExcerptInArticle: e.target.checked } : prev))}
+                          className="w-4 h-4 rounded border-neutral-300 text-black focus:ring-black cursor-pointer accent-black"
+                        />
+                        <span className="font-medium">
+                          Відображати короткий опис безпосередньо у статті
+                        </span>
+                      </label>
+                    </div>
                     <textarea
                       rows={2}
                       placeholder="Одне-два речення про головну думку статті українською..."
@@ -1782,6 +1803,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       onChange={(e) => setEditingArticle((prev) => (prev ? { ...prev, excerpt: e.target.value } : prev))}
                       className="w-full text-sm border border-neutral-200 p-3 focus:border-black focus:outline-none transition-colors resize-none"
                     />
+                    <p className="text-[11px] text-neutral-400">
+                      {editingArticle.showExcerptInArticle !== false
+                        ? '✓ Короткий опис буде показано у статті курсивом перед основним текстом'
+                        : '✕ Короткий опис приховано у статті (відображатиметься лише у картках статей на головній та в рубриках)'}
+                    </p>
                   </div>
 
                   {/* Текст UA + розширені інструменти форматування */}
@@ -2154,10 +2180,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   </div>
 
                   {/* Короткий опис EN */}
-                  <div>
-                    <label className="block text-xs uppercase tracking-wider text-neutral-500 mb-2">
-                      Excerpt / Summary (EN)
-                    </label>
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <label className="block text-xs uppercase tracking-wider text-neutral-500 font-medium">
+                        Excerpt / Summary (EN)
+                      </label>
+                      <label className="inline-flex items-center gap-2 cursor-pointer select-none text-xs text-neutral-700 hover:text-black">
+                        <input
+                          type="checkbox"
+                          checked={editingArticle.showExcerptInArticleEn !== undefined ? editingArticle.showExcerptInArticleEn : (editingArticle.showExcerptInArticle !== false)}
+                          onChange={(e) => setEditingArticle((prev) => (prev ? { ...prev, showExcerptInArticleEn: e.target.checked } : prev))}
+                          className="w-4 h-4 rounded border-neutral-300 text-black focus:ring-black cursor-pointer accent-black"
+                        />
+                        <span className="font-medium">
+                          Display excerpt in article
+                        </span>
+                      </label>
+                    </div>
                     <textarea
                       rows={2}
                       placeholder="One or two sentences summarizing the article in English..."
@@ -2165,6 +2204,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       onChange={(e) => setEditingArticle((prev) => (prev ? { ...prev, excerptEn: e.target.value } : prev))}
                       className="w-full text-sm border border-neutral-200 p-3 focus:border-black focus:outline-none transition-colors resize-none"
                     />
+                    <p className="text-[11px] text-neutral-400">
+                      {(editingArticle.showExcerptInArticleEn !== undefined ? editingArticle.showExcerptInArticleEn : (editingArticle.showExcerptInArticle !== false))
+                        ? '✓ Excerpt will be shown at the beginning of the article before content'
+                        : '✕ Excerpt hidden in article (only used for preview cards in feed)'}
+                    </p>
                   </div>
 
                   {/* Текст EN + розширені інструменти форматування */}
@@ -2670,9 +2714,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           )}
 
                           {art.excerpt && (
-                            <p className="text-xs text-neutral-500 line-clamp-1 mt-1 max-w-xl">
-                              {typeof art.excerpt === 'string' ? art.excerpt : String(art.excerpt)}
-                            </p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <p className="text-xs text-neutral-500 line-clamp-1 max-w-xl">
+                                {typeof art.excerpt === 'string' ? art.excerpt : String(art.excerpt)}
+                              </p>
+                              {art.showExcerptInArticle === false && (
+                                <span className="text-[10px] text-neutral-500 bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded shrink-0" title="Короткий опис приховано безпосередньо у статті">
+                                  приховано у статті
+                                </span>
+                              )}
+                            </div>
                           )}
 
                           {Array.isArray(art.topics) && art.topics.length > 0 && (

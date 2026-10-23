@@ -32,6 +32,7 @@ export interface Article {
   // Українська версія (основна)
   title: string;
   excerpt: string;
+  showExcerptInArticle?: boolean; // Відображати або не відображати короткий опис безпосередньо у статті (за замовчуванням true)
   content: string;
   category: string;
   categories?: string[]; // Рубрики статті (UA) - можливість призначити декілька рубрик
@@ -48,6 +49,7 @@ export interface Article {
   // Англійська версія
   titleEn?: string;
   excerptEn?: string;
+  showExcerptInArticleEn?: boolean; // Відображати короткий опис безпосередньо у статті для англійської версії
   contentEn?: string;
   categoryEn?: string;
   categoriesEn?: string[]; // Рубрики статті (EN) - можливість призначити декілька рубрик

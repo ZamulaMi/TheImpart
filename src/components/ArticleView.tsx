@@ -160,6 +160,9 @@ export const ArticleView: React.FC<ArticleViewProps> = ({
   const title = isEn && hasEnVersion ? article.titleEn! : article.title;
   const content = isEn && hasEnVersion ? article.contentEn! : article.content;
   const excerpt = isEn && hasEnVersion ? article.excerptEn : article.excerpt;
+  const showExcerpt = isEn && hasEnVersion
+    ? (article.showExcerptInArticleEn !== undefined ? article.showExcerptInArticleEn : article.showExcerptInArticle !== false)
+    : (article.showExcerptInArticle !== false);
   const categoriesList = isEn && hasEnVersion
     ? (article.categoriesEn && article.categoriesEn.length > 0
         ? article.categoriesEn
@@ -284,7 +287,7 @@ export const ArticleView: React.FC<ArticleViewProps> = ({
       )}
 
       {/* Лід / короткий опис */}
-      {excerpt && (
+      {showExcerpt && excerpt && (
         <p className="text-lg sm:text-xl text-neutral-700 dark:text-[#e0e0e0] leading-relaxed font-sans italic mb-8 border-l-2 border-black dark:border-[#cbcbcb] pl-6">
           {excerpt}
         </p>

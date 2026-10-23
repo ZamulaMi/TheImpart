@@ -13,6 +13,7 @@ export interface Article {
   // Українська версія (основна)
   title: string;
   excerpt: string;
+  showExcerptInArticle?: boolean;
   content: string;
   category: string;
   categories?: string[];
@@ -29,6 +30,7 @@ export interface Article {
   // Англійська версія
   titleEn?: string;
   excerptEn?: string;
+  showExcerptInArticleEn?: boolean;
   contentEn?: string;
   categoryEn?: string;
   categoriesEn?: string[];
@@ -140,6 +142,8 @@ export async function initDb() {
       await sql`ALTER TABLE articles ADD COLUMN IF NOT EXISTS topics TEXT;`;
       await sql`ALTER TABLE articles ADD COLUMN IF NOT EXISTS topics_en TEXT;`;
       await sql`ALTER TABLE articles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE;`;
+      await sql`ALTER TABLE articles ADD COLUMN IF NOT EXISTS show_excerpt_in_article BOOLEAN DEFAULT true;`;
+      await sql`ALTER TABLE articles ADD COLUMN IF NOT EXISTS show_excerpt_in_article_en BOOLEAN DEFAULT true;`;
     }, 3000);
 
     isTableInitialized = true;
@@ -176,6 +180,8 @@ export async function getArticles(): Promise<Article[]> {
           a.categories_en as "categoriesEn",
           a.topics,
           a.topics_en as "topicsEn",
+          a.show_excerpt_in_article as "showExcerptInArticle",
+          a.show_excerpt_in_article_en as "showExcerptInArticleEn",
           COALESCE(s.total_views, 0)::int as "views"
         FROM articles a
         LEFT JOIN (
@@ -192,6 +198,9 @@ export async function getArticles(): Promise<Article[]> {
         id: String(r.id),
         title: String(r.title || ''),
         excerpt: String(r.excerpt || ''),
+        showExcerptInArticle: r.showExcerptInArticle !== null && r.showExcerptInArticle !== undefined
+          ? (r.showExcerptInArticle === true || String(r.showExcerptInArticle) === 'true' || r.showExcerptInArticle === 1)
+          : true,
         content: String(r.content || ''),
         category: String(r.category || 'Загальне'),
         categories: parseJsonArray(r.categories) || (r.category ? r.category.split(',').map((s: string) => s.trim()).filter(Boolean) : ['Загальне']),
@@ -205,6 +214,9 @@ export async function getArticles(): Promise<Article[]> {
         published: r.published === true || String(r.published) === 'true' || r.published === 1,
         titleEn: r.titleEn ? String(r.titleEn) : undefined,
         excerptEn: r.excerptEn ? String(r.excerptEn) : undefined,
+        showExcerptInArticleEn: r.showExcerptInArticleEn !== null && r.showExcerptInArticleEn !== undefined
+          ? (r.showExcerptInArticleEn === true || String(r.showExcerptInArticleEn) === 'true' || r.showExcerptInArticleEn === 1)
+          : undefined,
         contentEn: r.contentEn ? String(r.contentEn) : undefined,
         categoryEn: r.categoryEn ? String(r.categoryEn) : undefined,
         categoriesEn: parseJsonArray(r.categoriesEn) || (r.categoryEn ? r.categoryEn.split(',').map((s: string) => s.trim()).filter(Boolean) : undefined),
@@ -352,10 +364,18 @@ export async function saveArticle(article: Article): Promise<Article> {
     ? article.topicsEn.map((t) => String(t).trim().replace(/^#+/, '')).filter(Boolean)
     : [];
 
+  const showExcerptInArticle = article.showExcerptInArticle !== undefined
+    ? (article.showExcerptInArticle === true || String(article.showExcerptInArticle) === 'true')
+    : true;
+  const showExcerptInArticleEn = article.showExcerptInArticleEn !== undefined
+    ? (article.showExcerptInArticleEn === true || String(article.showExcerptInArticleEn) === 'true')
+    : undefined;
+
   const fullArticle: Article = {
     id,
     title,
     excerpt,
+    showExcerptInArticle,
     content,
     category: categories.join(', ') || category,
     categories,
@@ -369,6 +389,7 @@ export async function saveArticle(article: Article): Promise<Article> {
     published: isPub,
     titleEn,
     excerptEn,
+    showExcerptInArticleEn,
     contentEn,
     categoryEn: categoriesEn.length > 0 ? categoriesEn.join(', ') : categoryEn,
     categoriesEn: categoriesEn.length > 0 ? categoriesEn : undefined,
@@ -404,8 +425,8 @@ export async function saveArticle(article: Article): Promise<Article> {
     await safeExecuteSql(async (sql) => {
       await sql`
         INSERT INTO articles (
-          id, title, excerpt, content, category, author, cover_image, date, read_time, published,
-          title_en, excerpt_en, content_en, category_en, published_en,
+          id, title, excerpt, show_excerpt_in_article, content, category, author, cover_image, date, read_time, published,
+          title_en, excerpt_en, show_excerpt_in_article_en, content_en, category_en, published_en,
           categories, categories_en, topics, topics_en,
           created_at, updated_at
         )
@@ -413,6 +434,7 @@ export async function saveArticle(article: Article): Promise<Article> {
           ${id}, 
           ${title}, 
           ${excerpt}, 
+          ${showExcerptInArticle},
           ${content}, 
           ${category}, 
           ${author}, 
@@ -422,6 +444,7 @@ export async function saveArticle(article: Article): Promise<Article> {
           ${isPub},
           ${titleEn || null},
           ${excerptEn || null},
+          ${showExcerptInArticleEn !== undefined ? showExcerptInArticleEn : true},
           ${contentEn || null},
           ${categoryEn || null},
           ${isPubEn},
@@ -435,6 +458,7 @@ export async function saveArticle(article: Article): Promise<Article> {
         ON CONFLICT (id) DO UPDATE SET
           title = EXCLUDED.title,
           excerpt = EXCLUDED.excerpt,
+          show_excerpt_in_article = EXCLUDED.show_excerpt_in_article,
           content = EXCLUDED.content,
           category = EXCLUDED.category,
           author = EXCLUDED.author,
@@ -443,6 +467,7 @@ export async function saveArticle(article: Article): Promise<Article> {
           published = EXCLUDED.published,
           title_en = EXCLUDED.title_en,
           excerpt_en = EXCLUDED.excerpt_en,
+          show_excerpt_in_article_en = EXCLUDED.show_excerpt_in_article_en,
           content_en = EXCLUDED.content_en,
           category_en = EXCLUDED.category_en,
           published_en = EXCLUDED.published_en,
