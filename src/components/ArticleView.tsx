@@ -179,21 +179,58 @@ export const ArticleView: React.FC<ArticleViewProps> = ({
 
   return (
     <article className="w-[92%] sm:w-[90%] md:max-w-3xl mx-auto py-8 sm:py-16 animate-article-fade-in">
-      {/* Верхня навігація та індикатор прихованості */}
-      <div className="flex items-center justify-between mb-8 sm:mb-10">
-        <a
-          href="/"
-          onClick={(e) => {
-            if (!e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey && e.button === 0) {
-              e.preventDefault();
-              onBack();
-            }
-          }}
-          className="inline-flex items-center gap-2 text-xs uppercase tracking-wider text-neutral-500 dark:text-[#a0a0a0] hover:text-black dark:hover:text-white transition-colors cursor-pointer group no-underline"
-        >
-          <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-1 transition-transform" />
-          <span>{isEn ? 'All articles' : 'Усі статті'}</span>
-        </a>
+      {/* Верхня навігація та рубрики статті */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-8 sm:mb-10">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+          <a
+            href="/"
+            onClick={(e) => {
+              if (!e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey && e.button === 0) {
+                e.preventDefault();
+                onBack();
+              }
+            }}
+            className="inline-flex items-center gap-2 text-xs uppercase tracking-wider text-neutral-500 dark:text-[#a0a0a0] hover:text-black dark:hover:text-white transition-colors cursor-pointer group no-underline shrink-0"
+          >
+            <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-1 transition-transform" />
+            <span>{isEn ? 'All articles' : 'Усі статті'}</span>
+          </a>
+
+          {categoriesList.length > 0 && (
+            <>
+              <span className="text-neutral-300 dark:text-neutral-700 select-none">•</span>
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-xs uppercase tracking-wider">
+                {categoriesList.map((cat, idx) => {
+                  const lower = cat.trim().toLowerCase();
+                  const targetHref =
+                    lower === 'новини' || lower === 'новина' || lower === 'news'
+                      ? '/news'
+                      : ['обзори', 'огляди', 'обзор', 'огляд', 'reviews', 'review'].includes(lower)
+                      ? '/reviews'
+                      : ['статті', 'стаття', 'articles', 'article'].includes(lower)
+                      ? '/articles'
+                      : `/search/${encodeURIComponent(cat)}`;
+                  return (
+                    <a
+                      key={`cat_${idx}`}
+                      href={targetHref}
+                      onClick={(e) => {
+                        if (!e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey && e.button === 0) {
+                          e.preventDefault();
+                          onSelectCategory?.(cat);
+                        }
+                      }}
+                      className="font-medium text-neutral-800 dark:text-[#cbcbcb] hover:text-black dark:hover:text-white bg-neutral-100 dark:bg-[#1a1a1a] hover:bg-neutral-200 dark:hover:bg-[#252525] border border-transparent dark:border-[#333333] px-2.5 py-0.5 rounded cursor-pointer transition-colors no-underline"
+                      title={isEn ? `Go to rubric ${cat}` : `Перейти до рубрики ${cat}`}
+                    >
+                      {cat}
+                    </a>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
 
         <div className="flex items-center gap-2">
           {/* Якщо користувач перемкнувся на англійську, але стаття ще не перекладена */}
@@ -213,48 +250,6 @@ export const ArticleView: React.FC<ArticleViewProps> = ({
             </span>
           )}
         </div>
-      </div>
-
-      {/* Рубрики та час публікації */}
-      <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-wider text-neutral-500 dark:text-[#888888] mb-4">
-        {categoriesList.map((cat, idx) => {
-          const lower = cat.trim().toLowerCase();
-          const targetHref =
-            lower === 'новини' || lower === 'новина' || lower === 'news'
-              ? '/news'
-              : ['обзори', 'огляди', 'обзор', 'огляд', 'reviews', 'review'].includes(lower)
-              ? '/reviews'
-              : ['статті', 'стаття', 'articles', 'article'].includes(lower)
-              ? '/articles'
-              : `/search/${encodeURIComponent(cat)}`;
-          return (
-            <a
-              key={`cat_${idx}`}
-              href={targetHref}
-              onClick={(e) => {
-                if (!e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey && e.button === 0) {
-                  e.preventDefault();
-                  onSelectCategory?.(cat);
-                }
-              }}
-              className="font-medium text-neutral-800 dark:text-[#cbcbcb] hover:text-black dark:hover:text-white bg-neutral-100 dark:bg-[#1a1a1a] hover:bg-neutral-200 dark:hover:bg-[#252525] border border-transparent dark:border-[#333333] px-2.5 py-0.5 rounded cursor-pointer transition-colors no-underline"
-              title={isEn ? `Go to rubric ${cat}` : `Перейти до рубрики ${cat}`}
-            >
-              {cat}
-            </a>
-          );
-        })}
-        {timeDisplay && (
-          <>
-            <span className="text-neutral-300 dark:text-neutral-700">•</span>
-            <span>{timeDisplay}</span>
-          </>
-        )}
-        <span className="text-neutral-300 dark:text-neutral-700">•</span>
-        <span className="inline-flex items-center gap-1 normal-case tracking-normal text-neutral-600 dark:text-[#a0a0a0]" title={isEn ? 'Total views' : 'Загальна кількість переглядів'}>
-          <Eye className="w-3.5 h-3.5 text-neutral-400 dark:text-[#777777]" />
-          <span>{formatViews(views, isEn)}</span>
-        </span>
       </div>
 
       {/* Заголовок */}
