@@ -1513,7 +1513,16 @@ export const RichArticleEditor: React.FC<RichArticleEditorProps> = ({
             </button>
 
             {activeDropdown === 'font' && (
-              <div className="absolute top-full left-0 mt-1 z-30 w-52 bg-white border border-neutral-200 rounded-md shadow-lg p-1.5 animate-fade-in space-y-1">
+              <div className="absolute top-full left-0 mt-1 z-30 w-60 bg-white border border-neutral-200 rounded-md shadow-lg p-1.5 animate-fade-in space-y-1">
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => handleApplyFont('-apple-system, BlinkMacSystemFont, sans-serif', 'sans')}
+                  className="w-full px-2.5 py-1.5 text-left text-sm font-sans font-medium hover:bg-neutral-100 rounded cursor-pointer flex items-center justify-between"
+                >
+                  <span>Сучасний Sans (гротеск)</span>
+                  <span className="text-[10px] text-neutral-400 font-mono">Основний</span>
+                </button>
                 <button
                   type="button"
                   onMouseDown={(e) => e.preventDefault()}
@@ -1521,14 +1530,6 @@ export const RichArticleEditor: React.FC<RichArticleEditorProps> = ({
                   className="w-full px-2.5 py-1.5 text-left text-sm font-serif hover:bg-neutral-100 rounded cursor-pointer"
                 >
                   Класичний Serif (із зарубками)
-                </button>
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => handleApplyFont('-apple-system, BlinkMacSystemFont, sans-serif', 'sans')}
-                  className="w-full px-2.5 py-1.5 text-left text-sm font-sans hover:bg-neutral-100 rounded cursor-pointer"
-                >
-                  Сучасний Sans (гротеск)
                 </button>
                 <button
                   type="button"
@@ -1544,7 +1545,7 @@ export const RichArticleEditor: React.FC<RichArticleEditorProps> = ({
                   onClick={() => handleApplyFont(null, 'default')}
                   className="w-full px-2.5 py-1.5 text-left text-xs text-neutral-600 hover:bg-neutral-100 rounded cursor-pointer border-t border-neutral-100 mt-1"
                 >
-                  Стандартний шрифт сайту
+                  Скинути до стандартного
                 </button>
               </div>
             )}
@@ -1829,7 +1830,7 @@ export const RichArticleEditor: React.FC<RichArticleEditorProps> = ({
             onKeyUp={saveSelection}
             onMouseUp={saveSelection}
             style={{ minHeight }}
-            className="w-full p-5 sm:p-7 text-neutral-900 leading-relaxed font-serif text-base sm:text-lg focus:outline-none bg-white cursor-text select-text"
+            className="w-full p-5 sm:p-7 text-neutral-900 leading-relaxed font-sans text-base sm:text-lg focus:outline-none bg-white cursor-text select-text"
           />
         )}
 
@@ -1859,7 +1860,7 @@ export const RichArticleEditor: React.FC<RichArticleEditorProps> = ({
               onKeyUp={saveSelection}
               onMouseUp={saveSelection}
               style={{ minHeight }}
-              className="w-full p-5 text-neutral-900 leading-relaxed font-serif text-base focus:outline-none bg-white overflow-y-auto max-h-[650px]"
+              className="w-full p-5 text-neutral-900 leading-relaxed font-sans text-base focus:outline-none bg-white overflow-y-auto max-h-[650px]"
             />
             <div style={{ minHeight }} className="p-6 overflow-y-auto bg-neutral-50/50 max-h-[650px]">
               <div className="text-[11px] font-sans uppercase tracking-wider text-neutral-400 font-semibold mb-4 pb-1 border-b border-neutral-200">

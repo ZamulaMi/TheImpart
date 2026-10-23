@@ -273,10 +273,9 @@ export function ArticleCard({
           )}
         </div>
 
-        {/* Назва статті */}
+        {/* Назва статті (шрифт як у рубрик header) */}
         <h3
-          className={`font-serif font-medium text-white leading-snug drop-shadow-sm group-hover:text-white/95 transition-colors ${titleClass}`}
-          style={{ fontFamily: "'Playfair Display', serif" }}
+          className={`font-sans font-semibold text-white leading-snug drop-shadow-sm group-hover:text-white/95 transition-colors ${titleClass}`}
         >
           {title}
         </h3>

@@ -604,7 +604,7 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({ content }) => 
   if (isHtml) {
     const processedHtml = cleanHtmlForTheme(markdownToHtml(content));
     return (
-      <div className="article-rendered-html space-y-6 text-neutral-800 dark:text-[#cbcbcb] leading-relaxed font-serif text-base sm:text-lg">
+      <div className="article-rendered-html space-y-6 text-neutral-800 dark:text-[#cbcbcb] leading-relaxed font-sans text-base sm:text-lg">
         <div
           dangerouslySetInnerHTML={{ __html: processedHtml }}
           onClick={(e) => {
@@ -663,7 +663,7 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({ content }) => 
   const blocks = parseContentToBlocks(normalizedContent);
 
   return (
-    <div className="space-y-6 text-neutral-800 dark:text-[#cbcbcb] leading-relaxed font-serif text-base sm:text-lg">
+    <div className="space-y-6 text-neutral-800 dark:text-[#cbcbcb] leading-relaxed font-sans text-base sm:text-lg">
       {blocks.map((block, idx) => {
         // 1. Заголовок
         if (block.type === 'heading') {
@@ -671,7 +671,7 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({ content }) => 
             return (
               <h2
                 key={idx}
-                className="text-2xl sm:text-3xl font-serif font-bold text-neutral-950 dark:text-[#f5f5f5] mt-10 mb-4 first:mt-0 border-none outline-none"
+                className="text-2xl sm:text-3xl font-sans font-bold text-neutral-950 dark:text-[#f5f5f5] mt-10 mb-4 first:mt-0 border-none outline-none tracking-tight"
               >
                 {renderInlineFormatting(block.text)}
               </h2>
@@ -681,7 +681,7 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({ content }) => 
             return (
               <h3
                 key={idx}
-                className="text-xl sm:text-2xl font-serif font-semibold text-neutral-900 dark:text-[#ececec] mt-8 mb-3 border-none outline-none"
+                className="text-xl sm:text-2xl font-sans font-semibold text-neutral-900 dark:text-[#ececec] mt-8 mb-3 border-none outline-none tracking-tight"
               >
                 {renderInlineFormatting(block.text)}
               </h3>
@@ -690,7 +690,7 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({ content }) => 
           return (
             <h4
               key={idx}
-              className="text-lg sm:text-xl font-serif font-medium text-neutral-800 dark:text-[#e0e0e0] mt-6 mb-2 border-none outline-none"
+              className="text-lg sm:text-xl font-sans font-medium text-neutral-800 dark:text-[#e0e0e0] mt-6 mb-2 border-none outline-none tracking-tight"
             >
               {renderInlineFormatting(block.text)}
             </h4>

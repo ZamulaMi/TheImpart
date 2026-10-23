@@ -1443,7 +1443,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       placeholder="Введіть заголовок статті українською..."
                       value={editingArticle.title || ''}
                       onChange={(e) => setEditingArticle((prev) => (prev ? { ...prev, title: e.target.value } : prev))}
-                      className="w-full text-lg sm:text-xl font-serif border-b border-neutral-200 pb-2 focus:border-black focus:outline-none transition-colors"
+                      className="w-full text-lg sm:text-xl font-sans font-semibold tracking-tight border-b border-neutral-200 pb-2 focus:border-black focus:outline-none transition-colors"
                     />
                   </div>
 
@@ -1882,7 +1882,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       placeholder="Enter article title in English..."
                       value={editingArticle.titleEn || ''}
                       onChange={(e) => setEditingArticle((prev) => (prev ? { ...prev, titleEn: e.target.value } : prev))}
-                      className="w-full text-lg sm:text-xl font-serif border-b border-neutral-200 pb-2 focus:border-black focus:outline-none transition-colors"
+                      className="w-full text-lg sm:text-xl font-sans font-semibold tracking-tight border-b border-neutral-200 pb-2 focus:border-black focus:outline-none transition-colors"
                     />
                   </div>
 

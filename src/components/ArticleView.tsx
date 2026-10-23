@@ -252,10 +252,9 @@ export const ArticleView: React.FC<ArticleViewProps> = ({
         </div>
       </div>
 
-      {/* Заголовок */}
+      {/* Заголовок статті (шрифт як у рубрик у header — сучасний sans / гротеск) */}
       <h1
-        className="text-3xl sm:text-4xl md:text-5xl font-medium tracking-tight text-black dark:text-[#f5f5f5] leading-tight mb-6"
-        style={{ fontFamily: "'Playfair Display', Georgia, serif" }}
+        className="text-3xl sm:text-4xl md:text-5xl font-sans font-bold tracking-tight text-black dark:text-[#f5f5f5] leading-tight mb-6"
       >
         {title}
       </h1>
@@ -286,7 +285,7 @@ export const ArticleView: React.FC<ArticleViewProps> = ({
 
       {/* Лід / короткий опис */}
       {excerpt && (
-        <p className="text-lg sm:text-xl text-neutral-700 dark:text-[#e0e0e0] leading-relaxed font-serif italic mb-8 border-l-2 border-black dark:border-[#cbcbcb] pl-6">
+        <p className="text-lg sm:text-xl text-neutral-700 dark:text-[#e0e0e0] leading-relaxed font-sans italic mb-8 border-l-2 border-black dark:border-[#cbcbcb] pl-6">
           {excerpt}
         </p>
       )}
