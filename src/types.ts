@@ -142,6 +142,7 @@ export interface SocialLinksSet {
   x?: string;
   youtube?: string;
   threads?: string;
+  facebook?: string;
 }
 
 export interface SiteSocialLinks {
@@ -156,6 +157,7 @@ export const DEFAULT_SOCIAL_LINKS: SiteSocialLinks = {
     x: 'https://x.com/impart_ua',
     youtube: 'https://youtube.com/@impart_ua',
     threads: 'https://threads.net/@impart_ua',
+    facebook: 'https://facebook.com/impart',
   },
   en: {
     telegram: 'https://t.me/impart_en',
@@ -163,6 +165,7 @@ export const DEFAULT_SOCIAL_LINKS: SiteSocialLinks = {
     x: 'https://x.com/impart_en',
     youtube: 'https://youtube.com/@impart_en',
     threads: 'https://threads.net/@impart_en',
+    facebook: 'https://facebook.com/impart_en',
   },
 };
 

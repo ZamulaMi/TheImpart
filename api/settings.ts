@@ -10,6 +10,7 @@ export interface SocialLinksSet {
   x?: string;
   youtube?: string;
   threads?: string;
+  facebook?: string;
 }
 
 export interface SiteSocialLinks {
@@ -24,6 +25,7 @@ export const DEFAULT_SOCIAL_LINKS: SiteSocialLinks = {
     x: 'https://x.com/impart_ua',
     youtube: 'https://youtube.com/@impart_ua',
     threads: 'https://threads.net/@impart_ua',
+    facebook: 'https://facebook.com/impart',
   },
   en: {
     telegram: 'https://t.me/impart_en',
@@ -31,6 +33,7 @@ export const DEFAULT_SOCIAL_LINKS: SiteSocialLinks = {
     x: 'https://x.com/impart_en',
     youtube: 'https://youtube.com/@impart_en',
     threads: 'https://threads.net/@impart_en',
+    facebook: 'https://facebook.com/impart_en',
   },
 };
 
@@ -144,7 +147,7 @@ export async function getSocialLinks(): Promise<SiteSocialLinks> {
 export async function saveSocialLinks(links: any): Promise<SiteSocialLinks> {
   const current = inMemorySocialLinks;
 
-  const uaInput = links?.ua || (!links?.en && (links?.telegram || links?.instagram || links?.x || links?.youtube || links?.threads) ? links : {});
+  const uaInput = links?.ua || (!links?.en && (links?.telegram || links?.instagram || links?.x || links?.youtube || links?.threads || links?.facebook) ? links : {});
   const enInput = links?.en || {};
 
   const cleaned: SiteSocialLinks = {
@@ -154,6 +157,7 @@ export async function saveSocialLinks(links: any): Promise<SiteSocialLinks> {
       x: uaInput.x !== undefined ? String(uaInput.x).trim() : (current.ua?.x || ''),
       youtube: uaInput.youtube !== undefined ? String(uaInput.youtube).trim() : (current.ua?.youtube || ''),
       threads: uaInput.threads !== undefined ? String(uaInput.threads).trim() : (current.ua?.threads || ''),
+      facebook: uaInput.facebook !== undefined ? String(uaInput.facebook).trim() : (current.ua?.facebook || ''),
     },
     en: {
       telegram: enInput.telegram !== undefined ? String(enInput.telegram).trim() : (current.en?.telegram || ''),
@@ -161,6 +165,7 @@ export async function saveSocialLinks(links: any): Promise<SiteSocialLinks> {
       x: enInput.x !== undefined ? String(enInput.x).trim() : (current.en?.x || ''),
       youtube: enInput.youtube !== undefined ? String(enInput.youtube).trim() : (current.en?.youtube || ''),
       threads: enInput.threads !== undefined ? String(enInput.threads).trim() : (current.en?.threads || ''),
+      facebook: enInput.facebook !== undefined ? String(enInput.facebook).trim() : (current.en?.facebook || ''),
     },
   };
 
