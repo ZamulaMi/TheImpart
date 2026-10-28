@@ -78,7 +78,7 @@ export function getStoredNavCategories(): NavigationCategory[] {
     const raw = localStorage.getItem(NAV_CATEGORIES_STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         return parsed.map((c, idx) => ({
           ...c,
           rubrics: Array.isArray(c.rubrics) ? c.rubrics : [],
@@ -123,9 +123,19 @@ export function matchesNavCategory(article: Article, category: NavigationCategor
     .filter(Boolean);
   const allTargetTopics = new Set([...targetTopics, ...targetTopicsEn]);
 
-  // Якщо ні рубрик, ні тем не обрано - нічого не підходить
+  // Якщо ні рубрик, ні тем явно не обрано — зіставляємо за власною назвою категорії
   if (allTargetRubrics.size === 0 && allTargetTopics.size === 0) {
-    return false;
+    if (category.name?.trim()) {
+      allTargetRubrics.add(category.name.trim().toLowerCase());
+      allTargetTopics.add(category.name.trim().replace(/^#+/, '').toLowerCase());
+    }
+    if (category.nameEn?.trim()) {
+      allTargetRubrics.add(category.nameEn.trim().toLowerCase());
+      allTargetTopics.add(category.nameEn.trim().replace(/^#+/, '').toLowerCase());
+    }
+    if (allTargetRubrics.size === 0 && allTargetTopics.size === 0) {
+      return false;
+    }
   }
 
   // Збираємо рубрики статті

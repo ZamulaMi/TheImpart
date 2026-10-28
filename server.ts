@@ -276,6 +276,9 @@ app.all(['/api/settings', '/api/settings/*'], async (req, res) => {
   } catch (err: any) {
     console.warn('Express /api/settings fallback active:', err);
     if (!res.headersSent) {
+      if (req.method === 'POST' || req.method === 'PUT' || req.method === 'DELETE') {
+        return res.status(500).json({ error: 'Помилка збереження налаштувань: ' + (err?.message || err) });
+      }
       try {
         const data = await getSocialLinks();
         return res.status(200).json(data);
@@ -293,6 +296,9 @@ app.all(['/api/pages', '/api/pages/*'], async (req, res) => {
   } catch (err: any) {
     console.warn('Express /api/pages fallback active:', err);
     if (!res.headersSent) {
+      if (req.method === 'POST' || req.method === 'PUT' || req.method === 'DELETE') {
+        return res.status(500).json({ error: 'Помилка збереження сторінок: ' + (err?.message || err) });
+      }
       try {
         const data = await getPages();
         return res.status(200).json(data);
@@ -310,6 +316,9 @@ app.all(['/api/taxonomies', '/api/taxonomies/*'], async (req, res) => {
   } catch (err: any) {
     console.warn('Express /api/taxonomies fallback active:', err);
     if (!res.headersSent) {
+      if (req.method === 'POST' || req.method === 'PUT' || req.method === 'DELETE') {
+        return res.status(500).json({ error: 'Помилка збереження таксономій: ' + (err?.message || err) });
+      }
       try {
         const data = await getTaxonomies();
         return res.status(200).json(data);
@@ -327,6 +336,9 @@ app.all(['/api/categories', '/api/categories/*'], async (req, res) => {
   } catch (err: any) {
     console.warn('Express /api/categories fallback active:', err);
     if (!res.headersSent) {
+      if (req.method === 'POST' || req.method === 'PUT' || req.method === 'DELETE') {
+        return res.status(500).json({ error: 'Помилка збереження категорій: ' + (err?.message || err) });
+      }
       try {
         const data = await getNavCategories();
         return res.status(200).json(data);

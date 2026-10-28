@@ -240,12 +240,12 @@ export async function fetchSitemapSourceData(): Promise<SitemapSourceData> {
             FROM site_settings
             WHERE key IN ('nav_categories', 'static_pages');
           `;
-        }, 4000);
+        }, 8000);
 
         for (const row of settingRows || []) {
           if (row.key === 'nav_categories' && row.value) {
             const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
-            if (Array.isArray(parsed) && parsed.length > 0) {
+            if (Array.isArray(parsed)) {
               categories = parsed;
             }
           } else if (row.key === 'static_pages' && row.value) {
@@ -277,7 +277,7 @@ export async function fetchSitemapSourceData(): Promise<SitemapSourceData> {
 
   // Режим локального серверного сховища (коли зовнішня СУБД не підключена у змінних середовища)
   const localCategoriesRaw = readJsonFileStrict<NavigationCategory[]>(categoriesPaths, 'categories');
-  if (Array.isArray(localCategoriesRaw) && localCategoriesRaw.length > 0) {
+  if (Array.isArray(localCategoriesRaw)) {
     categories = localCategoriesRaw;
   }
 

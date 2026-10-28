@@ -2,16 +2,16 @@ import { Article, SiteSocialLinks, SitePagesData, TaxonomiesData, NavigationCate
 import { getAuthHeaders } from './auth';
 import { formatErrorMessage } from '../utils/errors';
 
-export async function fetchPagesFromCloud(forceFresh = false): Promise<SitePagesData | null> {
+export async function fetchPagesFromCloud(_forceFresh = true): Promise<SitePagesData | null> {
   try {
-    const url = forceFresh ? `/api/pages?_t=${Date.now()}` : '/api/pages';
-    const res = await fetch(url, {
+    const res = await fetch(`/api/pages?_t=${Date.now()}`, {
       method: 'GET',
+      cache: 'no-store',
       headers: { Accept: 'application/json' },
     });
     if (res.ok) {
       const data = await res.json().catch(() => null);
-      if (data && typeof data === 'object' && (data.about || data.contacts)) {
+      if (data && typeof data === 'object' && !Array.isArray(data) && (data.about || data.contacts)) {
         return data as SitePagesData;
       }
     }
@@ -22,53 +22,44 @@ export async function fetchPagesFromCloud(forceFresh = false): Promise<SitePages
 }
 
 export async function savePagesToCloud(pages: SitePagesData): Promise<SitePagesData> {
+  const res = await fetch(`/api/pages?_t=${Date.now()}`, {
+    method: 'POST',
+    cache: 'no-store',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify(pages),
+  });
+
+  const text = await res.text().catch(() => '');
+  let data: any = {};
   try {
-    const res = await fetch(`/api/pages?_t=${Date.now()}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        ...getAuthHeaders(),
-      },
-      body: JSON.stringify(pages),
-    });
-
-    if (res) {
-      const text = await res.text().catch(() => '');
-      let data: any = {};
-      try {
-        data = JSON.parse(text);
-      } catch {
-        data = { error: text };
-      }
-
-      if (res.ok) {
-        return (data && typeof data === 'object' && (data.about || data.contacts)) ? (data as SitePagesData) : pages;
-      }
-
-      if (res.status === 400 || res.status === 401 || res.status === 403) {
-        throw new Error(formatErrorMessage(data.error || data, 'Не вдалося зберегти сторінки на сервері'));
-      }
-    }
-  } catch (err: any) {
-    if (err.message && !err.message.includes('server error')) {
-      throw err;
-    }
+    data = JSON.parse(text);
+  } catch {
+    data = { error: text };
   }
 
-  return pages;
+  if (res.ok) {
+    return data && typeof data === 'object' && !Array.isArray(data) && (data.about || data.contacts)
+      ? (data as SitePagesData)
+      : pages;
+  }
+
+  throw new Error(formatErrorMessage(data?.error || data, 'Не вдалося зберегти сторінки на сервері'));
 }
 
-export async function fetchSocialLinksFromCloud(forceFresh = false): Promise<SiteSocialLinks | null> {
+export async function fetchSocialLinksFromCloud(_forceFresh = true): Promise<SiteSocialLinks | null> {
   try {
-    const url = forceFresh ? `/api/settings?_t=${Date.now()}` : '/api/settings';
-    const res = await fetch(url, {
+    const res = await fetch(`/api/settings?_t=${Date.now()}`, {
       method: 'GET',
+      cache: 'no-store',
       headers: { Accept: 'application/json' },
     });
     if (res.ok) {
       const data = await res.json().catch(() => null);
-      if (data && typeof data === 'object') {
+      if (data && typeof data === 'object' && !Array.isArray(data) && (data.ua || data.en)) {
         return data as SiteSocialLinks;
       }
     }
@@ -79,42 +70,32 @@ export async function fetchSocialLinksFromCloud(forceFresh = false): Promise<Sit
 }
 
 export async function saveSocialLinksToCloud(links: SiteSocialLinks): Promise<SiteSocialLinks> {
+  const res = await fetch(`/api/settings?_t=${Date.now()}`, {
+    method: 'POST',
+    cache: 'no-store',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify(links),
+  });
+
+  const text = await res.text().catch(() => '');
+  let data: any = {};
   try {
-    const res = await fetch(`/api/settings?_t=${Date.now()}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        ...getAuthHeaders(),
-      },
-      body: JSON.stringify(links),
-    });
-
-    if (res) {
-      const text = await res.text().catch(() => '');
-      let data: any = {};
-      try {
-        data = JSON.parse(text);
-      } catch {
-        data = { error: text };
-      }
-
-      if (res.ok) {
-        return (data && typeof data === 'object' && data.ua) ? (data as SiteSocialLinks) : links;
-      }
-
-      if (res.status === 400 || res.status === 401) {
-        throw new Error(formatErrorMessage(data.error || data, 'Не вдалося зберегти налаштування на сервері'));
-      }
-    }
-  } catch (err: any) {
-    if (err.message && !err.message.includes('server error')) {
-      throw err;
-    }
+    data = JSON.parse(text);
+  } catch {
+    data = { error: text };
   }
 
-  // Якщо сервер Vercel тимчасово недоступний, повертаємо передані налаштування
-  return links;
+  if (res.ok) {
+    return data && typeof data === 'object' && !Array.isArray(data) && (data.ua || data.en)
+      ? (data as SiteSocialLinks)
+      : links;
+  }
+
+  throw new Error(formatErrorMessage(data?.error || data, 'Не вдалося зберегти налаштування соц. мереж на сервері'));
 }
 
 export async function fetchArticlesFromCloud(): Promise<Article[] | null> {
@@ -144,6 +125,7 @@ export async function fetchArticlesFromCloud(): Promise<Article[] | null> {
 export async function saveArticleToCloud(article: Article): Promise<Article> {
   const res = await fetch(`/api/articles?_t=${Date.now()}`, {
     method: 'POST',
+    cache: 'no-store',
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
@@ -171,6 +153,7 @@ export async function deleteArticleFromCloud(id: string): Promise<boolean> {
   const cleanId = String(id).trim();
   const res = await fetch(`/api/articles?id=${encodeURIComponent(cleanId)}`, {
     method: 'DELETE',
+    cache: 'no-store',
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
@@ -194,11 +177,11 @@ export async function deleteArticleFromCloud(id: string): Promise<boolean> {
   throw new Error(formatErrorMessage(data?.error || data, 'Не вдалося видалити статтю на сервері'));
 }
 
-export async function fetchTaxonomiesFromCloud(forceFresh = false): Promise<TaxonomiesData | null> {
+export async function fetchTaxonomiesFromCloud(_forceFresh = true): Promise<TaxonomiesData | null> {
   try {
-    const url = forceFresh ? `/api/taxonomies?_t=${Date.now()}` : '/api/taxonomies';
-    const res = await fetch(url, {
+    const res = await fetch(`/api/taxonomies?_t=${Date.now()}`, {
       method: 'GET',
+      cache: 'no-store',
       headers: { Accept: 'application/json' },
     });
     if (res.ok) {
@@ -214,53 +197,44 @@ export async function fetchTaxonomiesFromCloud(forceFresh = false): Promise<Taxo
 }
 
 export async function saveTaxonomiesToCloud(taxonomies: TaxonomiesData): Promise<TaxonomiesData> {
+  const res = await fetch(`/api/taxonomies?_t=${Date.now()}`, {
+    method: 'POST',
+    cache: 'no-store',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify(taxonomies),
+  });
+
+  const text = await res.text().catch(() => '');
+  let data: any = {};
   try {
-    const res = await fetch(`/api/taxonomies?_t=${Date.now()}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        ...getAuthHeaders(),
-      },
-      body: JSON.stringify(taxonomies),
-    });
-
-    if (res) {
-      const text = await res.text().catch(() => '');
-      let data: any = {};
-      try {
-        data = JSON.parse(text);
-      } catch {
-        data = { error: text };
-      }
-
-      if (res.ok) {
-        return (data && typeof data === 'object' && Array.isArray(data.categories)) ? (data as TaxonomiesData) : taxonomies;
-      }
-
-      if (res.status === 400 || res.status === 401 || res.status === 403) {
-        throw new Error(formatErrorMessage(data.error || data, 'Не вдалося зберегти таксономії на сервері'));
-      }
-    }
-  } catch (err: any) {
-    if (err.message && !err.message.includes('server error')) {
-      throw err;
-    }
+    data = JSON.parse(text);
+  } catch {
+    data = { error: text };
   }
 
-  return taxonomies;
+  if (res.ok) {
+    return data && typeof data === 'object' && Array.isArray(data.categories)
+      ? (data as TaxonomiesData)
+      : taxonomies;
+  }
+
+  throw new Error(formatErrorMessage(data?.error || data, 'Не вдалося зберегти рубрики та теми на сервері'));
 }
 
-export async function fetchNavCategoriesFromCloud(forceFresh = false): Promise<NavigationCategory[] | null> {
+export async function fetchNavCategoriesFromCloud(_forceFresh = true): Promise<NavigationCategory[] | null> {
   try {
-    const url = forceFresh ? `/api/categories?_t=${Date.now()}` : '/api/categories';
-    const res = await fetch(url, {
+    const res = await fetch(`/api/categories?_t=${Date.now()}`, {
       method: 'GET',
+      cache: 'no-store',
       headers: { Accept: 'application/json' },
     });
     if (res.ok) {
       const data = await res.json().catch(() => null);
-      if (Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data)) {
         return data as NavigationCategory[];
       }
     }
@@ -271,40 +245,30 @@ export async function fetchNavCategoriesFromCloud(forceFresh = false): Promise<N
 }
 
 export async function saveNavCategoriesToCloud(categories: NavigationCategory[]): Promise<NavigationCategory[]> {
+  const res = await fetch(`/api/categories?_t=${Date.now()}`, {
+    method: 'POST',
+    cache: 'no-store',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify(categories),
+  });
+
+  const text = await res.text().catch(() => '');
+  let data: any = {};
   try {
-    const res = await fetch(`/api/categories?_t=${Date.now()}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        ...getAuthHeaders(),
-      },
-      body: JSON.stringify(categories),
-    });
-
-    if (res) {
-      const text = await res.text().catch(() => '');
-      let data: any = {};
-      try {
-        data = JSON.parse(text);
-      } catch {
-        data = { error: text };
-      }
-
-      if (res.ok) {
-        return Array.isArray(data) ? (data as NavigationCategory[]) : categories;
-      }
-
-      if (res.status === 400 || res.status === 401 || res.status === 403) {
-        throw new Error(formatErrorMessage(data.error || data, 'Не вдалося зберегти категорії на сервері'));
-      }
-    }
-  } catch (err: any) {
-    if (err.message && !err.message.includes('server error')) {
-      throw err;
-    }
+    data = JSON.parse(text);
+  } catch {
+    data = { error: text };
   }
 
-  return categories;
+  if (res.ok) {
+    return Array.isArray(data) ? (data as NavigationCategory[]) : categories;
+  }
+
+  throw new Error(formatErrorMessage(data?.error || data, 'Не вдалося зберегти категорії на сервері'));
 }
+
 

@@ -99,6 +99,16 @@ function getServerInitialPublicData(): ServerInitialPublicData | null {
   return null;
 }
 
+function syncServerInitialPublicData(patch: Partial<ServerInitialPublicData>): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const existing = (window as any).__INITIAL_PUBLIC_DATA__;
+    if (existing && typeof existing === 'object') {
+      (window as any).__INITIAL_PUBLIC_DATA__ = { ...existing, ...patch };
+    }
+  } catch {}
+}
+
 const STORAGE_KEY = 'the_impart_articles_v1';
 const LANG_STORAGE_KEY = 'the_impart_lang_v1';
 const SOCIAL_STORAGE_KEY = 'the_impart_social_links_v1';
@@ -141,20 +151,20 @@ function removeClientDeletedId(id: string): void {
 
 const DEFAULT_SOCIAL_LINKS: SiteSocialLinks = {
   ua: {
-    telegram: 'https://t.me',
-    instagram: 'https://instagram.com',
-    x: 'https://x.com',
-    youtube: 'https://youtube.com',
-    threads: 'https://threads.net',
-    facebook: 'https://facebook.com',
+    telegram: '',
+    instagram: '',
+    x: '',
+    youtube: '',
+    threads: '',
+    facebook: '',
   },
   en: {
-    telegram: 'https://t.me',
-    instagram: 'https://instagram.com',
-    x: 'https://x.com',
-    youtube: 'https://youtube.com',
-    threads: 'https://threads.net',
-    facebook: 'https://facebook.com',
+    telegram: '',
+    instagram: '',
+    x: '',
+    youtube: '',
+    threads: '',
+    facebook: '',
   },
 };
 
@@ -696,7 +706,7 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
 
   const fetchPagesFromDb = async () => {
     try {
-      const data = await fetchPagesFromCloud();
+      const data = await fetchPagesFromCloud(true);
       if (data && typeof data === 'object' && (data.about || data.contacts)) {
         const combined = {
           about: { ...DEFAULT_PAGES_DATA.about, ...(data.about || {}) },
@@ -704,6 +714,7 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
         };
         const sanitized = sanitizeStaticPages(combined);
         setStaticPages(sanitized);
+        syncServerInitialPublicData({ staticPages: sanitized });
         try {
           localStorage.setItem(PAGES_STORAGE_KEY, JSON.stringify(sanitized));
         } catch (e) {
@@ -716,13 +727,15 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
   };
 
   const handleSaveStaticPages = async (newPages: SitePagesData) => {
-    setStaticPages(newPages);
+    const saved = await savePagesToCloud(newPages);
+    const sanitized = sanitizeStaticPages(saved);
+    setStaticPages(sanitized);
+    syncServerInitialPublicData({ staticPages: sanitized });
     try {
-      localStorage.setItem(PAGES_STORAGE_KEY, JSON.stringify(newPages));
+      localStorage.setItem(PAGES_STORAGE_KEY, JSON.stringify(sanitized));
     } catch (e) {
       console.error(e);
     }
-    await savePagesToCloud(newPages);
   };
 
   const [selectedArticleId, setSelectedArticleId] = useState<string | null>(() => parseRouteFromUrl().articleId);
@@ -739,21 +752,27 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
   });
 
   const handleSaveTaxonomies = async (data: TaxonomiesData) => {
+    const prevTaxonomies = taxonomies;
     setTaxonomies(data);
-    saveStoredTaxonomies(data);
     try {
-      await saveTaxonomiesToCloud(data);
+      const saved = await saveTaxonomiesToCloud(data);
+      setTaxonomies(saved);
+      saveStoredTaxonomies(saved);
+      syncServerInitialPublicData({ taxonomies: saved });
     } catch (err) {
-      console.warn('Cloud save taxonomies notice:', err);
+      setTaxonomies(prevTaxonomies);
+      console.error('Cloud save taxonomies error:', err);
+      throw err;
     }
   };
 
   const fetchTaxonomiesFromDb = async () => {
     try {
-      const cloudData = await fetchTaxonomiesFromCloud();
+      const cloudData = await fetchTaxonomiesFromCloud(true);
       if (cloudData && Array.isArray(cloudData.categories) && Array.isArray(cloudData.topics)) {
         setTaxonomies(cloudData);
         saveStoredTaxonomies(cloudData);
+        syncServerInitialPublicData({ taxonomies: cloudData });
       }
     } catch (err) {
       console.warn('Fetch taxonomies notice:', err);
@@ -762,7 +781,7 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
 
   const [navCategories, setNavCategories] = useState<NavigationCategory[]>(() => {
     const serverData = getServerInitialPublicData();
-    if (Array.isArray(serverData?.navCategories) && serverData.navCategories.length > 0) {
+    if (Array.isArray(serverData?.navCategories)) {
       return serverData.navCategories;
     }
     return getStoredNavCategories();
@@ -771,21 +790,27 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
   const desktopCategoriesRef = useRef<HTMLDivElement>(null);
 
   const handleSaveNavCategories = async (newCategories: NavigationCategory[]) => {
+    const prevCategories = navCategories;
     setNavCategories(newCategories);
-    saveStoredNavCategories(newCategories);
     try {
-      await saveNavCategoriesToCloud(newCategories);
+      const saved = await saveNavCategoriesToCloud(newCategories);
+      setNavCategories(saved);
+      saveStoredNavCategories(saved);
+      syncServerInitialPublicData({ navCategories: saved });
     } catch (err) {
-      console.warn('Cloud save categories notice:', err);
+      setNavCategories(prevCategories);
+      console.error('Cloud save categories error:', err);
+      throw err;
     }
   };
 
   const fetchNavCategoriesFromDb = async () => {
     try {
-      const cloudData = await fetchNavCategoriesFromCloud();
-      if (cloudData && Array.isArray(cloudData) && cloudData.length > 0) {
+      const cloudData = await fetchNavCategoriesFromCloud(true);
+      if (Array.isArray(cloudData)) {
         setNavCategories(cloudData);
         saveStoredNavCategories(cloudData);
+        syncServerInitialPublicData({ navCategories: cloudData });
       }
     } catch (err) {
       console.warn('Fetch categories notice:', err);
@@ -900,9 +925,10 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
 
   const fetchSocialLinksFromDb = async () => {
     try {
-      const cloudLinks = await fetchSocialLinksFromCloud();
-      if (cloudLinks && typeof cloudLinks === 'object') {
+      const cloudLinks = await fetchSocialLinksFromCloud(true);
+      if (cloudLinks && typeof cloudLinks === 'object' && !Array.isArray(cloudLinks)) {
         setSocialLinks(cloudLinks);
+        syncServerInitialPublicData({ socialLinks: cloudLinks });
         try {
           localStorage.setItem(SOCIAL_STORAGE_KEY, JSON.stringify(cloudLinks));
         } catch (e) {
@@ -915,10 +941,11 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
   };
 
   const handleSaveSocialLinks = async (links: SiteSocialLinks) => {
-    await saveSocialLinksToCloud(links);
-    setSocialLinks(links);
+    const saved = await saveSocialLinksToCloud(links);
+    setSocialLinks(saved);
+    syncServerInitialPublicData({ socialLinks: saved });
     try {
-      localStorage.setItem(SOCIAL_STORAGE_KEY, JSON.stringify(links));
+      localStorage.setItem(SOCIAL_STORAGE_KEY, JSON.stringify(saved));
     } catch (e) {
       console.error(e);
     }
@@ -1035,17 +1062,20 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
     }
 
     fetchArticlesFromDb();
-
-    if (!serverData?.socialLinks) fetchSocialLinksFromDb();
-    if (!serverData?.staticPages) fetchPagesFromDb();
-    if (!serverData?.taxonomies) fetchTaxonomiesFromDb();
-    if (!serverData?.navCategories) fetchNavCategoriesFromDb();
+    fetchSocialLinksFromDb();
+    fetchPagesFromDb();
+    fetchTaxonomiesFromDb();
+    fetchNavCategoriesFromDb();
   }, []);
 
-  // Після входу редактора або адміністратора підвантажуємо повний перелік статей разом із чернетками
+  // Після входу редактора або адміністратора підвантажуємо повний актуальний перелік даних із бази даних
   useEffect(() => {
     if (isAdminAuthenticated) {
       fetchArticlesFromDb();
+      fetchSocialLinksFromDb();
+      fetchNavCategoriesFromDb();
+      fetchTaxonomiesFromDb();
+      fetchPagesFromDb();
     }
   }, [isAdminAuthenticated]);
 
@@ -1576,13 +1606,15 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
     if (activeCategorySection) {
       let catTitle = String(activeCategorySection);
       if (activeCategorySection === 'news') catTitle = siteLang === 'en' ? 'News' : 'Новини';
-      else if (activeCategorySection === 'articles') catTitle = siteLang === 'en' ? 'Articles' : 'Статті';
-      else if (activeCategorySection === 'reviews') catTitle = siteLang === 'en' ? 'Reviews' : 'Огляди';
       else if (activeCategorySection === 'popular') catTitle = siteLang === 'en' ? 'Popular' : 'Популярні матеріали';
       else {
         const foundNav = navCategories.find((c) => c.slug === activeCategorySection || c.id === activeCategorySection);
         if (foundNav) {
           catTitle = siteLang === 'en' && foundNav.nameEn ? foundNav.nameEn : foundNav.name;
+        } else if (activeCategorySection === 'articles') {
+          catTitle = siteLang === 'en' ? 'Articles' : 'Статті';
+        } else if (activeCategorySection === 'reviews') {
+          catTitle = siteLang === 'en' ? 'Reviews' : 'Огляди';
         }
       }
 
@@ -1693,8 +1725,10 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
             onViewPageOnSite={(slug) => navigateToPage(slug)}
             taxonomies={taxonomies}
             onSaveTaxonomies={handleSaveTaxonomies}
+            onRefreshTaxonomies={fetchTaxonomiesFromDb}
             navCategories={navCategories}
             onSaveNavCategories={handleSaveNavCategories}
+            onRefreshNavCategories={fetchNavCategoriesFromDb}
             onViewCategoryOnSite={(slug) => handleSelectSection(slug)}
             userRole={userRole}
             userDisplayName={userDisplayName}
@@ -2817,97 +2851,121 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
               </a>
             </div>
 
-            <div className="mt-3.5 flex items-center gap-4 text-neutral-400 dark:text-[#888888]">
-              {/* Telegram */}
-              {socialLinks[siteLang]?.telegram && (
-                <a
-                  href={socialLinks[siteLang].telegram}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label="Telegram"
-                  className="footer-social-link text-neutral-400 dark:text-[#888888] hover:text-black dark:hover:text-[#ffffff] transition-colors duration-200"
-                >
-                  <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
-                    <path d="M21.927 3.513a1.498 1.498 0 0 0-1.505-.288L2.348 10.38c-1.048.423-1.042 1.34-.191 1.602l4.639 1.448 10.741-6.777c.507-.308.972-.143.59.196l-8.704 7.854-.319 4.768c.467 0 .673-.214.935-.467l2.247-2.185 4.675 3.453c.861.475 1.482.23 1.696-.8l3.068-14.457c.314-1.26-.481-1.831-1.308-1.442z" />
-                  </svg>
-                </a>
-              )}
+            {(() => {
+              const primaryLang: SiteLanguage = siteLang;
+              const fallbackLang: SiteLanguage = siteLang === 'en' ? 'ua' : 'en';
+              const getSocialHref = (key: keyof SiteSocialLinks['ua']): string => {
+                const primary = socialLinks?.[primaryLang]?.[key]?.trim();
+                if (primary) return primary;
+                const secondary = socialLinks?.[fallbackLang]?.[key]?.trim();
+                return secondary || '';
+              };
 
-              {/* Instagram */}
-              {socialLinks[siteLang]?.instagram && (
-                <a
-                  href={socialLinks[siteLang].instagram}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label="Instagram"
-                  className="footer-social-link text-neutral-400 dark:text-[#888888] hover:text-black dark:hover:text-[#ffffff] transition-colors duration-200"
-                >
-                  <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
-                    <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
-                  </svg>
-                </a>
-              )}
+              const telegramHref = getSocialHref('telegram');
+              const instagramHref = getSocialHref('instagram');
+              const xHref = getSocialHref('x');
+              const youtubeHref = getSocialHref('youtube');
+              const threadsHref = getSocialHref('threads');
+              const facebookHref = getSocialHref('facebook');
 
-              {/* X (formerly Twitter) */}
-              {socialLinks[siteLang]?.x && (
-                <a
-                  href={socialLinks[siteLang].x}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label="X (Twitter)"
-                  className="footer-social-link text-neutral-400 dark:text-[#888888] hover:text-black dark:hover:text-[#ffffff] transition-colors duration-200"
-                >
-                  <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
-                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-                  </svg>
-                </a>
-              )}
+              if (!telegramHref && !instagramHref && !xHref && !youtubeHref && !threadsHref && !facebookHref) {
+                return null;
+              }
 
-              {/* YouTube */}
-              {socialLinks[siteLang]?.youtube && (
-                <a
-                  href={socialLinks[siteLang].youtube}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label="YouTube"
-                  className="footer-social-link text-neutral-400 dark:text-[#888888] hover:text-black dark:hover:text-[#ffffff] transition-colors duration-200"
-                >
-                  <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
-                    <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
-                  </svg>
-                </a>
-              )}
+              return (
+                <div className="mt-3.5 flex items-center gap-4 text-neutral-400 dark:text-[#888888]">
+                  {/* Telegram */}
+                  {telegramHref && (
+                    <a
+                      href={telegramHref}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label="Telegram"
+                      className="footer-social-link text-neutral-400 dark:text-[#888888] hover:text-black dark:hover:text-[#ffffff] transition-colors duration-200"
+                    >
+                      <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                        <path d="M21.927 3.513a1.498 1.498 0 0 0-1.505-.288L2.348 10.38c-1.048.423-1.042 1.34-.191 1.602l4.639 1.448 10.741-6.777c.507-.308.972-.143.59.196l-8.704 7.854-.319 4.768c.467 0 .673-.214.935-.467l2.247-2.185 4.675 3.453c.861.475 1.482.23 1.696-.8l3.068-14.457c.314-1.26-.481-1.831-1.308-1.442z" />
+                      </svg>
+                    </a>
+                  )}
 
-              {/* Threads */}
-              {socialLinks[siteLang]?.threads && (
-                <a
-                  href={socialLinks[siteLang].threads}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label="Threads"
-                  className="footer-social-link text-neutral-400 dark:text-[#888888] hover:text-black dark:hover:text-[#ffffff] transition-colors duration-200"
-                >
-                  <svg className="w-5 h-5 fill-none stroke-current stroke-[1.8] stroke-linecap-round stroke-linejoin-round" viewBox="0 0 24 24">
-                    <path d="M19.25 12c0 4.5-3.25 8.25-8 8.25-4.5 0-7.75-3.5-7.75-8.25S6.75 3.75 12 3.75c4.75 0 7.5 3 7.75 7.25M16 11.25c0 3-1.75 4.5-4 4.5s-3.75-1.5-3.75-3.75S9.75 8.25 12 8.25c2.75 0 4 2 4 4.5v1.25c0 1.5-.75 2.5-2 2.5s-2-.75-2-2.25" />
-                  </svg>
-                </a>
-              )}
+                  {/* Instagram */}
+                  {instagramHref && (
+                    <a
+                      href={instagramHref}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label="Instagram"
+                      className="footer-social-link text-neutral-400 dark:text-[#888888] hover:text-black dark:hover:text-[#ffffff] transition-colors duration-200"
+                    >
+                      <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                        <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
+                      </svg>
+                    </a>
+                  )}
 
-              {/* Facebook */}
-              {socialLinks[siteLang]?.facebook && (
-                <a
-                  href={socialLinks[siteLang].facebook}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label="Facebook"
-                  className="footer-social-link text-neutral-400 dark:text-[#888888] hover:text-black dark:hover:text-[#ffffff] transition-colors duration-200"
-                >
-                  <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
-                    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
-                  </svg>
-                </a>
-              )}
-            </div>
+                  {/* X (formerly Twitter) */}
+                  {xHref && (
+                    <a
+                      href={xHref}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label="X (Twitter)"
+                      className="footer-social-link text-neutral-400 dark:text-[#888888] hover:text-black dark:hover:text-[#ffffff] transition-colors duration-200"
+                    >
+                      <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                      </svg>
+                    </a>
+                  )}
+
+                  {/* YouTube */}
+                  {youtubeHref && (
+                    <a
+                      href={youtubeHref}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label="YouTube"
+                      className="footer-social-link text-neutral-400 dark:text-[#888888] hover:text-black dark:hover:text-[#ffffff] transition-colors duration-200"
+                    >
+                      <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                        <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+                      </svg>
+                    </a>
+                  )}
+
+                  {/* Threads */}
+                  {threadsHref && (
+                    <a
+                      href={threadsHref}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label="Threads"
+                      className="footer-social-link text-neutral-400 dark:text-[#888888] hover:text-black dark:hover:text-[#ffffff] transition-colors duration-200"
+                    >
+                      <svg className="w-5 h-5 fill-none stroke-current stroke-[1.8] stroke-linecap-round stroke-linejoin-round" viewBox="0 0 24 24">
+                        <path d="M19.25 12c0 4.5-3.25 8.25-8 8.25-4.5 0-7.75-3.5-7.75-8.25S6.75 3.75 12 3.75c4.75 0 7.5 3 7.75 7.25M16 11.25c0 3-1.75 4.5-4 4.5s-3.75-1.5-3.75-3.75S9.75 8.25 12 8.25c2.75 0 4 2 4 4.5v1.25c0 1.5-.75 2.5-2 2.5s-2-.75-2-2.25" />
+                      </svg>
+                    </a>
+                  )}
+
+                  {/* Facebook */}
+                  {facebookHref && (
+                    <a
+                      href={facebookHref}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label="Facebook"
+                      className="footer-social-link text-neutral-400 dark:text-[#888888] hover:text-black dark:hover:text-[#ffffff] transition-colors duration-200"
+                    >
+                      <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                        <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+                      </svg>
+                    </a>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
           {/* Права частина футера: Перемикач теми, перемикач мови UA / EN та копірайт */}

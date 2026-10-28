@@ -93,16 +93,51 @@ export async function safeExecuteSql<T = any>(
   const sql = getNeonSql();
   if (!sql) return null;
 
+  let timer: ReturnType<typeof setTimeout> | null = null;
   try {
     const result = await Promise.race([
       sqlFn(sql),
-      new Promise<null>((_, reject) =>
-        setTimeout(() => reject(new Error('SQL query timeout')), timeoutMs)
-      ),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('SQL query timeout')), timeoutMs);
+      }),
     ]);
     return result;
   } catch (err) {
     console.warn('Safe SQL query execution warning:', err);
     return null;
+  } finally {
+    if (timer) clearTimeout(timer);
   }
 }
+
+// Надійне виконання запису в БД: повертає null лише якщо БД не налаштована у змінних середовища.
+// Якщо БД налаштована, робить повторну спробу при холодному старті Neon і прокидає помилку у разі невдачі.
+export async function executeSqlStrict<T = any>(
+  sqlFn: (sql: any) => Promise<T>,
+  timeoutMs: number = 10000
+): Promise<T | null> {
+  const sql = getNeonSql();
+  if (!sql) return null;
+
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    try {
+      const freshSql = attempt === 0 ? sql : (getNeonSql() || sql);
+      return await Promise.race([
+        sqlFn(freshSql),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error('SQL write timeout')), timeoutMs);
+        }),
+      ]);
+    } catch (err) {
+      lastError = err;
+      console.warn(`Strict SQL execution attempt ${attempt + 1} failed:`, err);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('Помилка запису в базу даних PostgreSQL');
+}
+

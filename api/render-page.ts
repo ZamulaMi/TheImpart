@@ -470,10 +470,9 @@ async function loadPublicRenderBundle(): Promise<PublicRenderBundle> {
       .filter((item): item is Article => item !== null)
   );
 
-  const navCategories =
-    Array.isArray(sitemapData.categories) && sitemapData.categories.length > 0
-      ? sitemapData.categories
-      : DEFAULT_NAV_CATEGORIES;
+  const navCategories = Array.isArray(sitemapData.categories)
+    ? sitemapData.categories
+    : DEFAULT_NAV_CATEGORIES;
 
   const staticPages: SitePagesData = sitemapData.staticPages || DEFAULT_PAGES_DATA;
 
@@ -510,8 +509,38 @@ function renderServerHeaderHtml(navCategories: NavigationCategory[], isEn: boole
 </header>`;
 }
 
-function renderServerFooterHtml(isEn: boolean): string {
+function renderServerFooterHtml(isEn: boolean, socialLinks?: SiteSocialLinks): string {
   const langSuffix = isEn ? '?lang=en' : '';
+  const primaryLang = isEn ? 'en' : 'ua';
+  const fallbackLang = isEn ? 'ua' : 'en';
+  const resolveLink = (key: keyof SiteSocialLinks['ua']): string => {
+    const primary = socialLinks?.[primaryLang]?.[key]?.trim();
+    if (primary) return primary;
+    const secondary = socialLinks?.[fallbackLang]?.[key]?.trim();
+    return secondary || '';
+  };
+
+  const socialItems: Array<{ label: string; href: string }> = [
+    { label: 'Telegram', href: resolveLink('telegram') },
+    { label: 'Instagram', href: resolveLink('instagram') },
+    { label: 'X (Twitter)', href: resolveLink('x') },
+    { label: 'YouTube', href: resolveLink('youtube') },
+    { label: 'Threads', href: resolveLink('threads') },
+    { label: 'Facebook', href: resolveLink('facebook') },
+  ].filter((item) => Boolean(item.href));
+
+  const socialHtml =
+    socialItems.length > 0
+      ? `<div class="mt-3.5 flex items-center gap-4 text-xs text-neutral-400 dark:text-[#888888]">
+        ${socialItems
+          .map(
+            (item) =>
+              `<a href="${escapeHtml(item.href)}" target="_blank" rel="noreferrer" aria-label="${escapeHtml(item.label)}" class="footer-social-link text-neutral-400 dark:text-[#888888]">${escapeHtml(item.label)}</a>`
+          )
+          .join('')}
+      </div>`
+      : '';
+
   return `<footer class="site-footer w-full bg-white dark:bg-[#111111] py-10 sm:py-12">
   <div class="w-[92%] sm:w-[90%] md:w-[calc(26/34*100%)] mx-auto flex flex-col sm:flex-row sm:items-end justify-between gap-6">
     <div>
@@ -524,6 +553,7 @@ function renderServerFooterHtml(isEn: boolean): string {
         <span>•</span>
         <a href="/contacts${langSuffix}" class="text-neutral-500 dark:text-[#999999]">${isEn ? 'Contacts' : 'Контакти'}</a>
       </div>
+      ${socialHtml}
     </div>
   </div>
 </footer>`;
@@ -855,7 +885,7 @@ export async function generatePageResponse(
   <main class="flex-1 w-[92%] sm:w-[90%] md:w-[calc(26/34*100%)] mx-auto py-8">
     <h1 class="text-2xl sm:text-3xl font-medium mb-6">${escapeHtml(title)}</h1>
   </main>
-  ${renderServerFooterHtml(requestedEn)}
+  ${renderServerFooterHtml(requestedEn, bundle.socialLinks)}
 </div>`;
 
     let html = cleanTemplateHead(baseTemplate).replace(/<html[^>]*lang=["'][^"']*["']/i, `<html lang="${lang}"`);
@@ -866,7 +896,7 @@ export async function generatePageResponse(
       status: 200,
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
-        'Cache-Control': 'public, max-age=0, s-maxage=15, stale-while-revalidate=30',
+        'Cache-Control': 'no-cache, must-revalidate, max-age=0',
       },
       html,
     };
@@ -1014,7 +1044,7 @@ export async function generatePageResponse(
       </div>
     </article>
   </main>
-  ${renderServerFooterHtml(effectiveIsEn)}
+  ${renderServerFooterHtml(effectiveIsEn, bundle.socialLinks)}
 </div>`;
 
     let html = cleanTemplateHead(baseTemplate).replace(/<html[^>]*lang=["'][^"']*["']/i, `<html lang="${lang}"`);
@@ -1025,7 +1055,7 @@ export async function generatePageResponse(
       status: 200,
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
-        'Cache-Control': 'public, max-age=0, s-maxage=60, stale-while-revalidate=300',
+        'Cache-Control': 'no-cache, must-revalidate, max-age=0',
       },
       html,
     };
@@ -1095,7 +1125,7 @@ export async function generatePageResponse(
       </div>
     </article>
   </main>
-  ${renderServerFooterHtml(effectiveIsEn)}
+  ${renderServerFooterHtml(effectiveIsEn, bundle.socialLinks)}
 </div>`;
 
     let html = cleanTemplateHead(baseTemplate).replace(/<html[^>]*lang=["'][^"']*["']/i, `<html lang="${lang}"`);
@@ -1106,7 +1136,7 @@ export async function generatePageResponse(
       status: 200,
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
-        'Cache-Control': 'public, max-age=0, s-maxage=120, stale-while-revalidate=600',
+        'Cache-Control': 'no-cache, must-revalidate, max-age=0',
       },
       html,
     };
@@ -1150,7 +1180,7 @@ export async function generatePageResponse(
     <h1 class="sr-only">${escapeHtml(title)}</h1>
     ${renderFeedListHtml(feedArticles, effectiveIsEn)}
   </main>
-  ${renderServerFooterHtml(effectiveIsEn)}
+  ${renderServerFooterHtml(effectiveIsEn, bundle.socialLinks)}
 </div>`;
 
     let html = cleanTemplateHead(baseTemplate).replace(/<html[^>]*lang=["'][^"']*["']/i, `<html lang="${lang}"`);
@@ -1161,7 +1191,7 @@ export async function generatePageResponse(
       status: 200,
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
-        'Cache-Control': 'public, max-age=0, s-maxage=30, stale-while-revalidate=120',
+        'Cache-Control': 'no-cache, must-revalidate, max-age=0',
       },
       html,
     };
@@ -1231,11 +1261,10 @@ export async function generatePageResponse(
       let catTitle = canonicalSlug;
       if (canonicalSlug === 'news') catTitle = effectiveIsEn ? 'News' : 'Новини';
       else if (canonicalSlug === 'popular') catTitle = effectiveIsEn ? 'Popular' : 'Популярні матеріали';
-      else if (canonicalSlug === 'articles') catTitle = effectiveIsEn ? 'Articles' : 'Статті';
-      else if (canonicalSlug === 'reviews') catTitle = effectiveIsEn ? 'Reviews' : 'Огляди';
       else if (matchedNav) {
         catTitle = effectiveIsEn && matchedNav.nameEn ? matchedNav.nameEn : matchedNav.name;
-      }
+      } else if (canonicalSlug === 'articles') catTitle = effectiveIsEn ? 'Articles' : 'Статті';
+      else if (canonicalSlug === 'reviews') catTitle = effectiveIsEn ? 'Reviews' : 'Огляди';
 
       const baseCatUrl = `${SITE_DOMAIN}/${encodeURIComponent(canonicalSlug)}`;
       const queryParts: string[] = [];
@@ -1292,7 +1321,7 @@ export async function generatePageResponse(
     ${renderFeedListHtml(pageSlice, effectiveIsEn)}
     ${paginationLinks}
   </main>
-  ${renderServerFooterHtml(effectiveIsEn)}
+  ${renderServerFooterHtml(effectiveIsEn, bundle.socialLinks)}
 </div>`;
 
       let html = cleanTemplateHead(baseTemplate).replace(/<html[^>]*lang=["'][^"']*["']/i, `<html lang="${lang}"`);
@@ -1303,7 +1332,7 @@ export async function generatePageResponse(
         status: 200,
         headers: {
           'Content-Type': 'text/html; charset=utf-8',
-          'Cache-Control': 'public, max-age=0, s-maxage=30, stale-while-revalidate=120',
+          'Cache-Control': 'no-cache, must-revalidate, max-age=0',
         },
         html,
       };

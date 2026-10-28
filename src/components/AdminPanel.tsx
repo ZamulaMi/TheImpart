@@ -64,9 +64,11 @@ interface AdminPanelProps {
   onSavePages?: (pages: SitePagesData) => Promise<void> | void;
   onViewPageOnSite?: (pageSlug: 'about' | 'contacts') => void;
   taxonomies?: TaxonomiesData;
-  onSaveTaxonomies: (data: TaxonomiesData) => void;
+  onSaveTaxonomies: (data: TaxonomiesData) => Promise<void> | void;
+  onRefreshTaxonomies?: () => Promise<void>;
   navCategories?: NavigationCategory[];
   onSaveNavCategories?: (categories: NavigationCategory[]) => Promise<void> | void;
+  onRefreshNavCategories?: () => Promise<void>;
   onViewCategoryOnSite?: (slug: string) => void;
   userRole?: UserRole;
   userDisplayName?: string;
@@ -101,8 +103,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onViewPageOnSite,
   taxonomies = { categories: [], topics: [] },
   onSaveTaxonomies,
+  onRefreshTaxonomies,
   navCategories = [],
   onSaveNavCategories,
+  onRefreshNavCategories,
   onViewCategoryOnSite,
   userRole = 'admin',
   userDisplayName,
@@ -1246,7 +1250,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           ) : activeSection === 'nav_categories' ? (
             <NavigationCategoriesManager
               categories={navCategories}
-              onSaveCategories={onSaveNavCategories || (() => {})}
+              onSaveCategories={onSaveNavCategories || (async () => {})}
+              onRefreshCategories={onRefreshNavCategories}
               taxonomies={taxonomies}
               articles={articles}
               showNotification={showNotification}
@@ -1263,6 +1268,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             <TaxonomyManager
               taxonomies={taxonomies}
               onSaveTaxonomies={onSaveTaxonomies}
+              onRefreshTaxonomies={onRefreshTaxonomies}
               articles={articles}
               showNotification={showNotification}
               canDelete={!isEditor}

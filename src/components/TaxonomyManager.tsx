@@ -1,19 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Folder, Tag, Check, Sparkles, Edit3, X } from 'lucide-react';
 import { TaxonomiesData, CategoryItem, TopicItem, Article } from '../types';
+import { formatErrorMessage } from '../utils/errors';
 
 interface TaxonomyManagerProps {
   taxonomies: TaxonomiesData;
-  onSaveTaxonomies: (data: TaxonomiesData) => void;
+  onSaveTaxonomies: (data: TaxonomiesData) => Promise<void> | void;
+  onRefreshTaxonomies?: () => Promise<void>;
   articles: Article[];
   showNotification: (msg: string) => void;
   canDelete?: boolean;
-  onUpdateArticles?: (articles: Article[]) => void;
+  onUpdateArticles?: (articles: Article[]) => Promise<void> | void;
 }
 
 export const TaxonomyManager: React.FC<TaxonomyManagerProps> = ({
   taxonomies,
   onSaveTaxonomies,
+  onRefreshTaxonomies,
   articles,
   showNotification,
   canDelete = true,
@@ -22,6 +25,13 @@ export const TaxonomyManager: React.FC<TaxonomyManagerProps> = ({
   const safeCategories = Array.isArray(taxonomies?.categories) ? taxonomies.categories : [];
   const safeTopics = Array.isArray(taxonomies?.topics) ? taxonomies.topics : [];
   const safeArticles = Array.isArray(articles) ? articles : [];
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (onRefreshTaxonomies) {
+      onRefreshTaxonomies().catch(() => {});
+    }
+  }, []);
 
   // Нова рубрика
   const [newCatName, setNewCatName] = useState('');
@@ -85,10 +95,10 @@ export const TaxonomyManager: React.FC<TaxonomyManagerProps> = ({
   };
 
   // Додавання нової рубрики
-  const handleAddCategory = (e: React.FormEvent) => {
+  const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanName = newCatName.trim();
-    if (!cleanName) return;
+    if (!cleanName || isSaving) return;
 
     if (
       safeCategories.some(
@@ -110,16 +120,23 @@ export const TaxonomyManager: React.FC<TaxonomyManagerProps> = ({
       topics: safeTopics,
     };
 
-    onSaveTaxonomies(updated);
-    setNewCatName('');
-    setNewCatNameEn('');
-    showNotification(`Рубрику «${cleanName}» успішно додано`);
+    setIsSaving(true);
+    try {
+      await onSaveTaxonomies(updated);
+      setNewCatName('');
+      setNewCatNameEn('');
+      showNotification(`Рубрику «${cleanName}» успішно додано`);
+    } catch (err: any) {
+      showNotification(formatErrorMessage(err, 'Помилка збереження рубрики на сервері'));
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // Збереження відредагованої рубрики
-  const handleSaveEditedCategory = (e: React.FormEvent) => {
+  const handleSaveEditedCategory = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingCategory) return;
+    if (!editingCategory || isSaving) return;
     const cleanName = editingCategory.name.trim();
     if (!cleanName) {
       showNotification('Назва рубрики не може бути порожньою');
@@ -150,47 +167,54 @@ export const TaxonomyManager: React.FC<TaxonomyManagerProps> = ({
       topics: safeTopics,
     };
 
-    onSaveTaxonomies(updatedTaxonomies);
+    setIsSaving(true);
+    try {
+      await onSaveTaxonomies(updatedTaxonomies);
 
-    // Якщо назва змінилася, оновлюємо також статті, що використовували стару назву
-    if (onUpdateArticles && oldName.toLowerCase() !== cleanName.toLowerCase()) {
-      const updatedArticles = safeArticles.map((art) => {
-        let changed = false;
-        let newCats = art.categories ? [...art.categories] : [];
-        if (newCats.some((c) => c.toLowerCase() === oldName.toLowerCase())) {
-          newCats = newCats.map((c) => (c.toLowerCase() === oldName.toLowerCase() ? cleanName : c));
-          changed = true;
-        }
-
-        let newCategory = art.category;
-        if (newCategory) {
-          const parts = newCategory.split(',').map((s) => s.trim());
-          if (parts.some((p) => p.toLowerCase() === oldName.toLowerCase())) {
-            newCategory = parts
-              .map((p) => (p.toLowerCase() === oldName.toLowerCase() ? cleanName : p))
-              .join(', ');
-            changed = true;
+      // Якщо назва змінилася, оновлюємо також статті, що використовували стару назву
+      if (onUpdateArticles && oldName.toLowerCase() !== cleanName.toLowerCase()) {
+        const updatedArticles = safeArticles.filter((art) => {
+          const cats = art.categories ? [...art.categories] : [];
+          const catStrParts = art.category ? art.category.split(',').map((s) => s.trim()) : [];
+          const catsEn = art.categoriesEn ? [...art.categoriesEn] : [];
+          const catEnParts = art.categoryEn ? art.categoryEn.split(',').map((s) => s.trim()) : [];
+          return (
+            cats.some((c) => c.toLowerCase() === oldName.toLowerCase()) ||
+            catStrParts.some((p) => p.toLowerCase() === oldName.toLowerCase()) ||
+            Boolean(cleanNameEn && oldNameEn && catsEn.some((c) => c.toLowerCase() === oldNameEn.toLowerCase())) ||
+            Boolean(cleanNameEn && oldNameEn && catEnParts.some((p) => p.toLowerCase() === oldNameEn.toLowerCase()))
+          );
+        }).map((art) => {
+          let newCats = art.categories ? [...art.categories] : [];
+          if (newCats.some((c) => c.toLowerCase() === oldName.toLowerCase())) {
+            newCats = newCats.map((c) => (c.toLowerCase() === oldName.toLowerCase() ? cleanName : c));
           }
-        }
 
-        let newCatsEn = art.categoriesEn ? [...art.categoriesEn] : [];
-        if (cleanNameEn && oldNameEn && newCatsEn.some((c) => c.toLowerCase() === oldNameEn.toLowerCase())) {
-          newCatsEn = newCatsEn.map((c) => (c.toLowerCase() === oldNameEn.toLowerCase() ? cleanNameEn : c));
-          changed = true;
-        }
-
-        let newCategoryEn = art.categoryEn;
-        if (cleanNameEn && oldNameEn && newCategoryEn) {
-          const partsEn = newCategoryEn.split(',').map((s) => s.trim());
-          if (partsEn.some((p) => p.toLowerCase() === oldNameEn.toLowerCase())) {
-            newCategoryEn = partsEn
-              .map((p) => (p.toLowerCase() === oldNameEn.toLowerCase() ? cleanNameEn : p))
-              .join(', ');
-            changed = true;
+          let newCategory = art.category;
+          if (newCategory) {
+            const parts = newCategory.split(',').map((s) => s.trim());
+            if (parts.some((p) => p.toLowerCase() === oldName.toLowerCase())) {
+              newCategory = parts
+                .map((p) => (p.toLowerCase() === oldName.toLowerCase() ? cleanName : p))
+                .join(', ');
+            }
           }
-        }
 
-        if (changed) {
+          let newCatsEn = art.categoriesEn ? [...art.categoriesEn] : [];
+          if (cleanNameEn && oldNameEn && newCatsEn.some((c) => c.toLowerCase() === oldNameEn.toLowerCase())) {
+            newCatsEn = newCatsEn.map((c) => (c.toLowerCase() === oldNameEn.toLowerCase() ? cleanNameEn : c));
+          }
+
+          let newCategoryEn = art.categoryEn;
+          if (cleanNameEn && oldNameEn && newCategoryEn) {
+            const partsEn = newCategoryEn.split(',').map((s) => s.trim());
+            if (partsEn.some((p) => p.toLowerCase() === oldNameEn.toLowerCase())) {
+              newCategoryEn = partsEn
+                .map((p) => (p.toLowerCase() === oldNameEn.toLowerCase() ? cleanNameEn : p))
+                .join(', ');
+            }
+          }
+
           return {
             ...art,
             categories: newCats.length > 0 ? newCats : [cleanName],
@@ -198,32 +222,45 @@ export const TaxonomyManager: React.FC<TaxonomyManagerProps> = ({
             categoriesEn: newCatsEn.length > 0 ? newCatsEn : cleanNameEn ? [cleanNameEn] : art.categoriesEn,
             categoryEn: newCategoryEn || cleanNameEn || art.categoryEn,
           };
+        });
+
+        if (updatedArticles.length > 0) {
+          await onUpdateArticles(updatedArticles);
         }
-        return art;
-      });
+      }
 
-      onUpdateArticles(updatedArticles);
+      setEditingCategory(null);
+      showNotification(`Рубрику «${oldName}» успішно змінено на «${cleanName}»`);
+    } catch (err: any) {
+      showNotification(formatErrorMessage(err, 'Помилка збереження рубрики на сервері'));
+    } finally {
+      setIsSaving(false);
     }
-
-    setEditingCategory(null);
-    showNotification(`Рубрику «${oldName}» успішно змінено на «${cleanName}»`);
   };
 
   // Видалення рубрики
-  const handleDeleteCategory = (id: string, name: string) => {
+  const handleDeleteCategory = async (id: string, name: string) => {
+    if (isSaving) return;
     const updated: TaxonomiesData = {
       categories: safeCategories.filter((c) => c.id !== id),
       topics: safeTopics,
     };
-    onSaveTaxonomies(updated);
-    showNotification(`Рубрику «${name}» видалено`);
+    setIsSaving(true);
+    try {
+      await onSaveTaxonomies(updated);
+      showNotification(`Рубрику «${name}» видалено`);
+    } catch (err: any) {
+      showNotification(formatErrorMessage(err, 'Помилка видалення рубрики на сервері'));
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // Додавання нової теми
-  const handleAddTopic = (e: React.FormEvent) => {
+  const handleAddTopic = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanName = newTopicName.trim().replace(/^#+/, '');
-    if (!cleanName) return;
+    if (!cleanName || isSaving) return;
 
     if (
       safeTopics.some(
@@ -245,16 +282,23 @@ export const TaxonomyManager: React.FC<TaxonomyManagerProps> = ({
       topics: [...safeTopics, newTopic],
     };
 
-    onSaveTaxonomies(updated);
-    setNewTopicName('');
-    setNewTopicNameEn('');
-    showNotification(`Тему «${cleanName}» успішно додано`);
+    setIsSaving(true);
+    try {
+      await onSaveTaxonomies(updated);
+      setNewTopicName('');
+      setNewTopicNameEn('');
+      showNotification(`Тему «${cleanName}» успішно додано`);
+    } catch (err: any) {
+      showNotification(formatErrorMessage(err, 'Помилка збереження теми на сервері'));
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // Збереження відредагованої теми
-  const handleSaveEditedTopic = (e: React.FormEvent) => {
+  const handleSaveEditedTopic = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingTopic) return;
+    if (!editingTopic || isSaving) return;
     const cleanName = editingTopic.name.trim().replace(/^#+/, '');
     if (!cleanName) {
       showNotification('Назва теми не може бути порожньою');
@@ -284,53 +328,71 @@ export const TaxonomyManager: React.FC<TaxonomyManagerProps> = ({
       topics: updatedTopics,
     };
 
-    onSaveTaxonomies(updatedTaxonomies);
+    setIsSaving(true);
+    try {
+      await onSaveTaxonomies(updatedTaxonomies);
 
-    // Якщо назва теми змінилася, оновлюємо також теми у статтях
-    if (onUpdateArticles && oldName.toLowerCase() !== cleanName.toLowerCase()) {
-      const updatedArticles = safeArticles.map((art) => {
-        let changed = false;
-        let newTopics = Array.isArray(art.topics) ? [...art.topics] : [];
-        if (newTopics.some((t) => t.replace(/^#+/, '').toLowerCase() === oldName.toLowerCase())) {
-          newTopics = newTopics.map((t) =>
-            t.replace(/^#+/, '').toLowerCase() === oldName.toLowerCase() ? cleanName : t
+      // Якщо назва теми змінилася, оновлюємо також теми у статтях (лише змінені статті!)
+      if (onUpdateArticles && oldName.toLowerCase() !== cleanName.toLowerCase()) {
+        const updatedArticles = safeArticles.filter((art) => {
+          const topicsUa = Array.isArray(art.topics) ? art.topics : [];
+          const topicsEn = Array.isArray(art.topicsEn) ? art.topicsEn : [];
+          return (
+            topicsUa.some((t) => t.replace(/^#+/, '').toLowerCase() === oldName.toLowerCase()) ||
+            Boolean(cleanNameEn && oldNameEn && topicsEn.some((t) => t.replace(/^#+/, '').toLowerCase() === oldNameEn.toLowerCase()))
           );
-          changed = true;
-        }
+        }).map((art) => {
+          let newTopics = Array.isArray(art.topics) ? [...art.topics] : [];
+          if (newTopics.some((t) => t.replace(/^#+/, '').toLowerCase() === oldName.toLowerCase())) {
+            newTopics = newTopics.map((t) =>
+              t.replace(/^#+/, '').toLowerCase() === oldName.toLowerCase() ? cleanName : t
+            );
+          }
 
-        let newTopicsEn = Array.isArray(art.topicsEn) ? [...art.topicsEn] : [];
-        if (cleanNameEn && oldNameEn && newTopicsEn.some((t) => t.replace(/^#+/, '').toLowerCase() === oldNameEn.toLowerCase())) {
-          newTopicsEn = newTopicsEn.map((t) =>
-            t.replace(/^#+/, '').toLowerCase() === oldNameEn.toLowerCase() ? cleanNameEn : t
-          );
-          changed = true;
-        }
+          let newTopicsEn = Array.isArray(art.topicsEn) ? [...art.topicsEn] : [];
+          if (cleanNameEn && oldNameEn && newTopicsEn.some((t) => t.replace(/^#+/, '').toLowerCase() === oldNameEn.toLowerCase())) {
+            newTopicsEn = newTopicsEn.map((t) =>
+              t.replace(/^#+/, '').toLowerCase() === oldNameEn.toLowerCase() ? cleanNameEn : t
+            );
+          }
 
-        if (changed) {
           return {
             ...art,
             topics: newTopics,
             topicsEn: newTopicsEn,
           };
+        });
+
+        if (updatedArticles.length > 0) {
+          await onUpdateArticles(updatedArticles);
         }
-        return art;
-      });
+      }
 
-      onUpdateArticles(updatedArticles);
+      setEditingTopic(null);
+      showNotification(`Тему «${oldName}» успішно змінено на «${cleanName}»`);
+    } catch (err: any) {
+      showNotification(formatErrorMessage(err, 'Помилка збереження теми на сервері'));
+    } finally {
+      setIsSaving(false);
     }
-
-    setEditingTopic(null);
-    showNotification(`Тему «${oldName}» успішно змінено на «${cleanName}»`);
   };
 
   // Видалення теми
-  const handleDeleteTopic = (id: string, name: string) => {
+  const handleDeleteTopic = async (id: string, name: string) => {
+    if (isSaving) return;
     const updated: TaxonomiesData = {
       categories: safeCategories,
       topics: safeTopics.filter((t) => t.id !== id),
     };
-    onSaveTaxonomies(updated);
-    showNotification(`Тему «${name}» видалено`);
+    setIsSaving(true);
+    try {
+      await onSaveTaxonomies(updated);
+      showNotification(`Тему «${name}» видалено`);
+    } catch (err: any) {
+      showNotification(formatErrorMessage(err, 'Помилка видалення теми на сервері'));
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (

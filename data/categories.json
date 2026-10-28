@@ -5,12 +5,31 @@
     "name": "Статті",
     "nameEn": "Articles",
     "rubrics": [
-      "Статті"
+      "Статті",
+      "Стаття",
+      "Есе",
+      "Філософія",
+      "Архітектура",
+      "Естетика",
+      "Мистецтво",
+      "Дизайн",
+      "Культура",
+      "Загальне"
     ],
     "rubricsEn": [
-      "Articles"
+      "Articles",
+      "Article",
+      "Essays",
+      "Essay",
+      "Philosophy",
+      "Architecture",
+      "Aesthetics",
+      "Art",
+      "Design",
+      "Culture"
     ],
     "topics": [],
+    "topicsEn": [],
     "order": 0
   },
   {
@@ -19,12 +38,17 @@
     "name": "Огляди",
     "nameEn": "Reviews",
     "rubrics": [
-      "Огляди"
+      "Огляди",
+      "Огляд",
+      "Обзори",
+      "Обзор"
     ],
     "rubricsEn": [
-      "Reviews"
+      "Reviews",
+      "Review"
     ],
     "topics": [],
+    "topicsEn": [],
     "order": 1
   }
 ]

@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { safeExecuteSql } from './_db.ts';
+import { safeExecuteSql, executeSqlStrict } from './_db.ts';
 import { verifyAdminToken, extractToken } from './_auth_utils.ts';
 import { initResponseHelpers, parseRequestBody } from './_helpers.ts';
 import { type SitePagesData, DEFAULT_PAGES_DATA } from '../src/types.ts';
@@ -20,7 +20,7 @@ function readPagesFromFile(): SitePagesData | null {
         const content = fs.readFileSync(p, 'utf-8');
         if (content && content.trim()) {
           const parsed = JSON.parse(content);
-          if (parsed && typeof parsed === 'object') {
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
             return {
               about: { ...DEFAULT_PAGES_DATA.about, ...(parsed.about || {}) },
               contacts: { ...DEFAULT_PAGES_DATA.contacts, ...(parsed.contacts || {}) },
@@ -55,7 +55,7 @@ let isPagesTableInitialized = false;
 async function initPagesDb() {
   if (isPagesTableInitialized) return;
   try {
-    await safeExecuteSql(async (sql) => {
+    const ok = await safeExecuteSql(async (sql) => {
       await sql`
         CREATE TABLE IF NOT EXISTS site_settings (
           key VARCHAR(100) PRIMARY KEY,
@@ -72,8 +72,11 @@ async function initPagesDb() {
           ON CONFLICT (key) DO NOTHING;
         `;
       }
-    }, 2500);
-    isPagesTableInitialized = true;
+      return true;
+    }, 8000);
+    if (ok) {
+      isPagesTableInitialized = true;
+    }
   } catch (err) {
     console.warn('Database initialization warning for static_pages (fallback active):', err);
   }
@@ -85,17 +88,19 @@ export async function getPages(): Promise<SitePagesData> {
     await initPagesDb();
     const rows = await safeExecuteSql(async (sql) => {
       return await sql`SELECT value FROM site_settings WHERE key = 'static_pages' LIMIT 1;`;
-    }, 2500);
+    }, 8000);
 
     if (rows && rows.length > 0 && rows[0].value) {
       const parsed = typeof rows[0].value === 'string' ? JSON.parse(rows[0].value) : rows[0].value;
-      const combined: SitePagesData = {
-        about: { ...DEFAULT_PAGES_DATA.about, ...(parsed.about || {}) },
-        contacts: { ...DEFAULT_PAGES_DATA.contacts, ...(parsed.contacts || {}) },
-      };
-      inMemoryPages = combined;
-      writePagesToFile(combined);
-      return combined;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        const combined: SitePagesData = {
+          about: { ...DEFAULT_PAGES_DATA.about, ...(parsed.about || {}) },
+          contacts: { ...DEFAULT_PAGES_DATA.contacts, ...(parsed.contacts || {}) },
+        };
+        inMemoryPages = combined;
+        writePagesToFile(combined);
+        return combined;
+      }
     }
   } catch (err) {
     console.warn('Database query error in getPages, falling back to disk/memory:', err);
@@ -125,7 +130,7 @@ export async function savePages(pagesInput: any): Promise<SitePagesData> {
       title: aboutInput.title ? String(aboutInput.title).trim() : current.about.title,
       titleEn: aboutInput.titleEn ? String(aboutInput.titleEn).trim() : current.about.titleEn,
       content: aboutInput.content !== undefined ? String(aboutInput.content) : current.about.content,
-      contentEn: aboutInput.contentEn !== undefined ? String(aboutInput.contentEn) : current.about.contentEn,
+      contentEn: aboutInput.contentEn !== undefined ? String(aboutInput.contentEn) : current.contacts && aboutInput.contentEn === undefined ? current.about.contentEn : '',
       updatedAt: new Date().toISOString(),
     },
     contacts: {
@@ -139,25 +144,28 @@ export async function savePages(pagesInput: any): Promise<SitePagesData> {
     },
   };
 
+  const jsonStr = JSON.stringify(cleaned);
+  await executeSqlStrict(async (sql) => {
+    await sql`
+      CREATE TABLE IF NOT EXISTS site_settings (
+        key VARCHAR(100) PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+    await sql`
+      INSERT INTO site_settings (key, value, updated_at)
+      VALUES ('static_pages', ${jsonStr}, CURRENT_TIMESTAMP)
+      ON CONFLICT (key) DO UPDATE
+      SET value = ${jsonStr}, updated_at = CURRENT_TIMESTAMP;
+    `;
+    return true;
+  }, 10000);
+  isPagesTableInitialized = true;
+
   // Оновлюємо стан у пам'яті та записуємо на диск
   inMemoryPages = cleaned;
   writePagesToFile(cleaned);
-
-  // Синхронізуємо з PostgreSQL
-  try {
-    await initPagesDb();
-    await safeExecuteSql(async (sql) => {
-      const jsonStr = JSON.stringify(cleaned);
-      await sql`
-        INSERT INTO site_settings (key, value, updated_at)
-        VALUES ('static_pages', ${jsonStr}, CURRENT_TIMESTAMP)
-        ON CONFLICT (key) DO UPDATE
-        SET value = ${jsonStr}, updated_at = CURRENT_TIMESTAMP;
-      `;
-    }, 3000);
-  } catch (err) {
-    console.warn('Postgres sync notice: static pages saved locally:', err);
-  }
 
   invalidateSitemapCache();
   triggerSitemapAutoUpdate();
@@ -178,7 +186,8 @@ export default async function handler(req: any, res: any) {
     }
 
     if (req.method === 'GET') {
-      res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=60, stale-while-revalidate=300');
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+      res.setHeader('Pragma', 'no-cache');
       const data = await getPages();
       return res.status(200).json(data);
     }
@@ -202,7 +211,7 @@ export default async function handler(req: any, res: any) {
         }
       }
 
-      if (!body || typeof body !== 'object') {
+      if (!body || typeof body !== 'object' || Array.isArray(body)) {
         return res.status(400).json({ error: 'Недійсні дані запиту' });
       }
 
@@ -213,6 +222,12 @@ export default async function handler(req: any, res: any) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   } catch (error: any) {
     console.error('Static pages handler unexpected error:', error);
+    if (req.method === 'POST' || req.method === 'PUT') {
+      return res.status(500).json({
+        error: 'Не вдалося зберегти сторінки в базі даних: ' + (error?.message || 'помилка сервера'),
+      });
+    }
     return res.status(200).json(inMemoryPages);
   }
 }
+

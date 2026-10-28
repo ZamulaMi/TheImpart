@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Plus,
   Trash2,
@@ -11,17 +11,20 @@ import {
   ArrowUp,
   ArrowDown,
   ExternalLink,
-  Eye,
   Sparkles,
   Info,
   Search,
+  RefreshCw,
+  AlertCircle,
 } from 'lucide-react';
 import { NavigationCategory, TaxonomiesData, Article } from '../types';
 import { slugifyCategory, matchesNavCategory } from '../utils/categories';
+import { formatErrorMessage } from '../utils/errors';
 
 interface NavigationCategoriesManagerProps {
   categories: NavigationCategory[];
-  onSaveCategories: (categories: NavigationCategory[]) => void;
+  onSaveCategories: (categories: NavigationCategory[]) => Promise<void> | void;
+  onRefreshCategories?: () => Promise<void>;
   taxonomies: TaxonomiesData;
   articles: Article[];
   showNotification: (msg: string) => void;
@@ -32,6 +35,7 @@ interface NavigationCategoriesManagerProps {
 export const NavigationCategoriesManager: React.FC<NavigationCategoriesManagerProps> = ({
   categories,
   onSaveCategories,
+  onRefreshCategories,
   taxonomies,
   articles,
   showNotification,
@@ -46,6 +50,10 @@ export const NavigationCategoriesManager: React.FC<NavigationCategoriesManagerPr
   // Стан для модального вікна створення/редагування категорії
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<NavigationCategory | null>(null);
+  const [categoryPendingDelete, setCategoryPendingDelete] = useState<NavigationCategory | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Форма редагування
   const [formName, setFormName] = useState('');
@@ -58,6 +66,25 @@ export const NavigationCategoriesManager: React.FC<NavigationCategoriesManagerPr
   // Фільтри у формі для швидкого пошуку рубрик/тем
   const [rubricSearch, setRubricSearch] = useState('');
   const [topicSearch, setTopicSearch] = useState('');
+
+  useEffect(() => {
+    if (onRefreshCategories) {
+      onRefreshCategories().catch(() => {});
+    }
+  }, []);
+
+  const handleRefresh = async () => {
+    if (!onRefreshCategories) return;
+    setIsRefreshing(true);
+    try {
+      await onRefreshCategories();
+      showNotification('Категорії оновлено з бази даних');
+    } catch {
+      showNotification('Не вдалося оновити категорії з сервера');
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   // Підрахунок статей для кожної категорії
   const getArticleCountForCategory = (cat: NavigationCategory) => {
@@ -86,6 +113,7 @@ export const NavigationCategoriesManager: React.FC<NavigationCategoriesManagerPr
     setSelectedTopics([]);
     setRubricSearch('');
     setTopicSearch('');
+    setFormError(null);
     setIsModalOpen(true);
   };
 
@@ -99,6 +127,7 @@ export const NavigationCategoriesManager: React.FC<NavigationCategoriesManagerPr
     setSelectedTopics(Array.isArray(cat.topics) ? [...cat.topics] : []);
     setRubricSearch('');
     setTopicSearch('');
+    setFormError(null);
     setIsModalOpen(true);
   };
 
@@ -150,10 +179,12 @@ export const NavigationCategoriesManager: React.FC<NavigationCategoriesManagerPr
     setSelectedTopics([]);
   };
 
-  const handleSaveForm = (e: React.FormEvent) => {
+  const handleSaveForm = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
     const cleanName = formName.trim();
     if (!cleanName) {
+      setFormError('Вкажіть назву категорії');
       showNotification('Вкажіть назву категорії');
       return;
     }
@@ -165,21 +196,41 @@ export const NavigationCategoriesManager: React.FC<NavigationCategoriesManagerPr
       (c) => c.slug.toLowerCase() === cleanSlug.toLowerCase() && c.id !== editingCategory?.id
     );
     if (duplicateSlug) {
-      showNotification(`Категорія з посиланням «/${cleanSlug}» вже існує`);
+      const msg = `Категорія з посиланням «/${cleanSlug}» вже існує`;
+      setFormError(msg);
+      showNotification(msg);
       return;
     }
 
-    if (selectedRubrics.length === 0 && selectedTopics.length === 0) {
-      showNotification('Виберіть хоча б одну рубрику або тему для цієї категорії');
-      return;
+    // Якщо рубрики і теми не вибрані вручну, перевіряємо чи є однойменна рубрика або підставляємо назву категорії
+    let effectiveRubrics = [...selectedRubrics];
+    if (effectiveRubrics.length === 0 && selectedTopics.length === 0) {
+      const matchingTaxCat = safeTaxonomiesCategories.find(
+        (tc) => tc.name.trim().toLowerCase() === cleanName.toLowerCase()
+      );
+      effectiveRubrics = [matchingTaxCat ? matchingTaxCat.name : cleanName];
     }
 
     // Відповідні назви EN для вибраних рубрик
     const rubricsEnList: string[] = [];
-    selectedRubrics.forEach((rName) => {
+    effectiveRubrics.forEach((rName) => {
       const found = safeTaxonomiesCategories.find((tc) => tc.name.toLowerCase() === rName.toLowerCase());
       if (found?.nameEn) rubricsEnList.push(found.nameEn);
     });
+    if (editingCategory?.rubricsEn) {
+      editingCategory.rubricsEn.forEach((existingEn) => {
+        const stillMatches = effectiveRubrics.some((rName) => {
+          const found = safeTaxonomiesCategories.find((tc) => tc.name.toLowerCase() === rName.toLowerCase());
+          return found?.nameEn?.toLowerCase() === existingEn.toLowerCase();
+        });
+        if (stillMatches && !rubricsEnList.some((x) => x.toLowerCase() === existingEn.toLowerCase())) {
+          rubricsEnList.push(existingEn);
+        }
+      });
+    }
+    if (formNameEn.trim() && rubricsEnList.length === 0 && selectedTopics.length === 0) {
+      rubricsEnList.push(formNameEn.trim());
+    }
 
     // Відповідні назви EN для вибраних тем
     const topicsEnList: string[] = [];
@@ -188,76 +239,113 @@ export const NavigationCategoriesManager: React.FC<NavigationCategoriesManagerPr
       if (found?.nameEn) topicsEnList.push(found.nameEn);
     });
 
-    if (editingCategory) {
-      // Оновлення наявної категорії
-      const updated = safeCategories.map((c) =>
-        c.id === editingCategory.id
-          ? {
-              ...c,
-              name: cleanName,
-              nameEn: formNameEn.trim() || undefined,
-              slug: cleanSlug,
-              rubrics: selectedRubrics,
-              rubricsEn: rubricsEnList.length > 0 ? rubricsEnList : undefined,
-              topics: selectedTopics,
-              topicsEn: topicsEnList.length > 0 ? topicsEnList : undefined,
-            }
-          : c
-      );
-      onSaveCategories(updated);
-      showNotification(`Категорію «${cleanName}» успішно оновлено`);
-    } else {
-      // Створення нової категорії
-      const newCat: NavigationCategory = {
-        id: `cat-nav-${Date.now()}`,
-        name: cleanName,
-        nameEn: formNameEn.trim() || undefined,
-        slug: cleanSlug,
-        rubrics: selectedRubrics,
-        rubricsEn: rubricsEnList.length > 0 ? rubricsEnList : undefined,
-        topics: selectedTopics,
-        topicsEn: topicsEnList.length > 0 ? topicsEnList : undefined,
-        order: safeCategories.length,
-      };
-      onSaveCategories([...safeCategories, newCat]);
-      showNotification(`Категорію «${cleanName}» створено та додано до списку`);
-    }
+    setIsSaving(true);
+    try {
+      if (editingCategory) {
+        const updated = safeCategories.map((c) =>
+          c.id === editingCategory.id
+            ? {
+                ...c,
+                name: cleanName,
+                nameEn: formNameEn.trim() || undefined,
+                slug: cleanSlug,
+                rubrics: effectiveRubrics,
+                rubricsEn: rubricsEnList.length > 0 ? rubricsEnList : undefined,
+                topics: selectedTopics,
+                topicsEn: topicsEnList.length > 0 ? topicsEnList : undefined,
+              }
+            : c
+        );
+        await onSaveCategories(updated);
+        showNotification(`Категорію «${cleanName}» успішно збережено`);
+      } else {
+        const newCat: NavigationCategory = {
+          id: `cat-nav-${Date.now()}`,
+          name: cleanName,
+          nameEn: formNameEn.trim() || undefined,
+          slug: cleanSlug,
+          rubrics: effectiveRubrics,
+          rubricsEn: rubricsEnList.length > 0 ? rubricsEnList : undefined,
+          topics: selectedTopics,
+          topicsEn: topicsEnList.length > 0 ? topicsEnList : undefined,
+          order: safeCategories.length,
+        };
+        await onSaveCategories([...safeCategories, newCat]);
+        showNotification(`Категорію «${cleanName}» створено та збережено`);
+      }
 
-    setIsModalOpen(false);
-    setEditingCategory(null);
+      setIsModalOpen(false);
+      setEditingCategory(null);
+      setFormError(null);
+    } catch (err: any) {
+      const msg = formatErrorMessage(err, 'Не вдалося зберегти категорію на сервері');
+      setFormError(msg);
+      showNotification(msg);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handleDeleteCategory = (cat: NavigationCategory) => {
-    if (!window.confirm(`Ви дійсно бажаєте видалити категорію «${cat.name}» з меню?`)) {
-      return;
-    }
-    const updated = safeCategories.filter((c) => c.id !== cat.id);
-    onSaveCategories(updated);
-    showNotification(`Категорію «${cat.name}» видалено`);
+  const handleRequestDeleteCategory = (cat: NavigationCategory) => {
+    setCategoryPendingDelete(cat);
   };
 
-  const handleMoveUp = (index: number) => {
-    if (index <= 0) return;
-    const reordered = [...safeCategories];
+  const handleConfirmDeleteCategory = async () => {
+    if (!categoryPendingDelete) return;
+    const target = categoryPendingDelete;
+    setIsSaving(true);
+    try {
+      const updated = safeCategories
+        .filter((c) => c.id !== target.id)
+        .map((c, idx) => ({ ...c, order: idx }));
+      await onSaveCategories(updated);
+      setCategoryPendingDelete(null);
+      showNotification(`Категорію «${target.name}» видалено`);
+    } catch (err: any) {
+      showNotification(formatErrorMessage(err, 'Помилка видалення категорії на сервері'));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleMoveUp = async (index: number) => {
+    if (index <= 0 || isSaving) return;
+    const reordered = safeCategories.map((c) => ({ ...c }));
     const temp = reordered[index - 1];
     reordered[index - 1] = reordered[index];
     reordered[index] = temp;
     reordered.forEach((c, idx) => {
       c.order = idx;
     });
-    onSaveCategories(reordered);
+    setIsSaving(true);
+    try {
+      await onSaveCategories(reordered);
+      showNotification('Порядок категорій збережено');
+    } catch (err: any) {
+      showNotification(formatErrorMessage(err, 'Не вдалося зберегти порядок категорій'));
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handleMoveDown = (index: number) => {
-    if (index >= safeCategories.length - 1) return;
-    const reordered = [...safeCategories];
+  const handleMoveDown = async (index: number) => {
+    if (index >= safeCategories.length - 1 || isSaving) return;
+    const reordered = safeCategories.map((c) => ({ ...c }));
     const temp = reordered[index + 1];
     reordered[index + 1] = reordered[index];
     reordered[index] = temp;
     reordered.forEach((c, idx) => {
       c.order = idx;
     });
-    onSaveCategories(reordered);
+    setIsSaving(true);
+    try {
+      await onSaveCategories(reordered);
+      showNotification('Порядок категорій збережено');
+    } catch (err: any) {
+      showNotification(formatErrorMessage(err, 'Не вдалося зберегти порядок категорій'));
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // Фільтровані списки для форми
@@ -290,14 +378,30 @@ export const NavigationCategoriesManager: React.FC<NavigationCategoriesManagerPr
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={handleOpenCreateModal}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-black text-white text-xs sm:text-sm font-medium rounded-lg hover:bg-neutral-800 transition-colors cursor-pointer shadow-xs self-start sm:self-auto shrink-0"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Створити категорію</span>
-        </button>
+        <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+          {onRefreshCategories && (
+            <button
+              type="button"
+              onClick={handleRefresh}
+              disabled={isRefreshing || isSaving}
+              title="Оновити категорії безпосередньо із бази даних"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 text-xs sm:text-sm font-medium rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
+            >
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Оновити</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={handleOpenCreateModal}
+            disabled={isSaving}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-black text-white text-xs sm:text-sm font-medium rounded-lg hover:bg-neutral-800 transition-colors disabled:opacity-50 cursor-pointer shadow-xs"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Створити категорію</span>
+          </button>
+        </div>
       </div>
 
       {/* Пояснювальна плашка */}
@@ -429,8 +533,9 @@ export const NavigationCategoriesManager: React.FC<NavigationCategoriesManagerPr
                     {canDelete && (
                       <button
                         type="button"
-                        onClick={() => handleDeleteCategory(cat)}
-                        className="p-1.5 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer"
+                        disabled={isSaving}
+                        onClick={() => handleRequestDeleteCategory(cat)}
+                        className="p-1.5 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer disabled:opacity-50"
                         title="Видалити категорію"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -514,6 +619,13 @@ export const NavigationCategoriesManager: React.FC<NavigationCategoriesManagerPr
 
             {/* Тіло форми з прокруткою */}
             <form onSubmit={handleSaveForm} className="space-y-6 overflow-y-auto pr-1 flex-1">
+              {formError && (
+                <div className="p-3.5 bg-red-50 border border-red-200 text-red-800 text-xs rounded-lg flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 shrink-0" />
+                  <span>{formError}</span>
+                </div>
+              )}
+
               {/* Поля назви */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -728,20 +840,81 @@ export const NavigationCategoriesManager: React.FC<NavigationCategoriesManagerPr
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-neutral-100">
                 <button
                   type="button"
+                  disabled={isSaving}
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2.5 text-xs font-medium text-neutral-600 hover:text-black transition-colors cursor-pointer"
+                  className="px-4 py-2.5 text-xs font-medium text-neutral-600 hover:text-black transition-colors cursor-pointer disabled:opacity-50"
                 >
                   Скасувати
                 </button>
                 <button
                   type="submit"
-                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-black text-white text-xs font-medium rounded-lg hover:bg-neutral-800 transition-colors cursor-pointer shadow-xs"
+                  disabled={isSaving}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-black text-white text-xs font-medium rounded-lg hover:bg-neutral-800 transition-colors cursor-pointer shadow-xs disabled:opacity-50"
                 >
-                  <Check className="w-4 h-4" />
-                  <span>{editingCategory ? 'Зберегти зміни' : 'Створити категорію'}</span>
+                  {isSaving ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Check className="w-4 h-4" />
+                  )}
+                  <span>
+                    {isSaving
+                      ? 'Збереження...'
+                      : editingCategory
+                      ? 'Зберегти зміни'
+                      : 'Створити категорію'}
+                  </span>
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Модальне вікно підтвердження видалення категорії (без блокуючого window.confirm) */}
+      {categoryPendingDelete && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-neutral-200 max-w-md w-full p-6 space-y-5 animate-page-fade-in">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-full bg-red-50 text-red-600 flex items-center justify-center shrink-0">
+                  <Trash2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-black">Видалити категорію?</h3>
+                  <p className="text-xs text-neutral-500 mt-0.5">
+                    Пункт «{categoryPendingDelete.name}» зникне з меню «Категорії» у шапці сайту (самі статті залишаться).
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={isSaving}
+                onClick={() => setCategoryPendingDelete(null)}
+                className="text-neutral-400 hover:text-black cursor-pointer p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-neutral-100">
+              <button
+                type="button"
+                disabled={isSaving}
+                onClick={() => setCategoryPendingDelete(null)}
+                className="px-4 py-2 text-xs font-medium text-neutral-600 hover:text-black transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Скасувати
+              </button>
+              <button
+                type="button"
+                disabled={isSaving}
+                onClick={handleConfirmDeleteCategory}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-red-600 text-white text-xs font-medium rounded-lg hover:bg-red-700 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {isSaving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                <span>{isSaving ? 'Видалення...' : 'Видалити'}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

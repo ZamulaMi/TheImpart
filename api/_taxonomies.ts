@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { safeExecuteSql } from './_db.ts';
+import { safeExecuteSql, executeSqlStrict } from './_db.ts';
 import { verifyEditorOrAdminToken, extractToken } from './_auth_utils.ts';
 import { initResponseHelpers, parseRequestBody } from './_helpers.ts';
 import { invalidateSitemapCache } from './_sitemap_cache.ts';
@@ -53,7 +53,7 @@ let isTaxonomiesTableInitialized = false;
 async function initTaxonomiesDb() {
   if (isTaxonomiesTableInitialized) return;
   try {
-    await safeExecuteSql(async (sql) => {
+    const ok = await safeExecuteSql(async (sql) => {
       await sql`
         CREATE TABLE IF NOT EXISTS site_settings (
           key VARCHAR(100) PRIMARY KEY,
@@ -70,8 +70,11 @@ async function initTaxonomiesDb() {
           ON CONFLICT (key) DO NOTHING;
         `;
       }
-    }, 2500);
-    isTaxonomiesTableInitialized = true;
+      return true;
+    }, 8000);
+    if (ok) {
+      isTaxonomiesTableInitialized = true;
+    }
   } catch (error) {
     console.warn('Neon taxonomies table init notice:', error);
   }
@@ -82,11 +85,11 @@ export async function getTaxonomies(): Promise<TaxonomiesData> {
     await initTaxonomiesDb();
     const rows = await safeExecuteSql(async (sql) => {
       return await sql`SELECT value FROM site_settings WHERE key = 'taxonomies' LIMIT 1;`;
-    }, 2500);
+    }, 8000);
 
     if (rows && rows.length > 0 && rows[0]?.value) {
       try {
-        const parsed = JSON.parse(rows[0].value);
+        const parsed = typeof rows[0].value === 'string' ? JSON.parse(rows[0].value) : rows[0].value;
         if (parsed && Array.isArray(parsed.categories) && Array.isArray(parsed.topics)) {
           inMemoryTaxonomies = parsed;
           writeTaxonomiesToFile(parsed);
@@ -114,24 +117,29 @@ export async function saveTaxonomies(taxonomies: TaxonomiesData): Promise<Taxono
     categories: Array.isArray(taxonomies?.categories) ? taxonomies.categories : DEFAULT_TAXONOMIES.categories,
     topics: Array.isArray(taxonomies?.topics) ? taxonomies.topics : DEFAULT_TAXONOMIES.topics,
   };
+  const jsonStr = JSON.stringify(safeData);
+
+  await executeSqlStrict(async (sql) => {
+    await sql`
+      CREATE TABLE IF NOT EXISTS site_settings (
+        key VARCHAR(100) PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+    await sql`
+      INSERT INTO site_settings (key, value, updated_at)
+      VALUES ('taxonomies', ${jsonStr}, CURRENT_TIMESTAMP)
+      ON CONFLICT (key) DO UPDATE SET
+        value = EXCLUDED.value,
+        updated_at = CURRENT_TIMESTAMP;
+    `;
+    return true;
+  }, 10000);
+  isTaxonomiesTableInitialized = true;
 
   inMemoryTaxonomies = safeData;
   writeTaxonomiesToFile(safeData);
-
-  try {
-    await initTaxonomiesDb();
-    await safeExecuteSql(async (sql) => {
-      await sql`
-        INSERT INTO site_settings (key, value, updated_at)
-        VALUES ('taxonomies', ${JSON.stringify(safeData)}, CURRENT_TIMESTAMP)
-        ON CONFLICT (key) DO UPDATE SET
-          value = EXCLUDED.value,
-          updated_at = CURRENT_TIMESTAMP;
-      `;
-    }, 3000);
-  } catch (err) {
-    console.warn('Neon save notice for taxonomies (saved locally):', err);
-  }
 
   invalidateSitemapCache();
   return safeData;
@@ -143,6 +151,7 @@ export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept');
+  res.setHeader('Content-Type', 'application/json');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -150,7 +159,8 @@ export default async function handler(req: any, res: any) {
 
   try {
     if (req.method === 'GET') {
-      res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=60, stale-while-revalidate=300');
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+      res.setHeader('Pragma', 'no-cache');
       const data = await getTaxonomies();
       return res.status(200).json(data);
     }
@@ -171,7 +181,7 @@ export default async function handler(req: any, res: any) {
         }
       }
 
-      if (!body || typeof body !== 'object') {
+      if (!body || typeof body !== 'object' || Array.isArray(body)) {
         return res.status(400).json({ error: 'Тіло запиту повинно бути об\'єктом' });
       }
 
@@ -182,6 +192,12 @@ export default async function handler(req: any, res: any) {
     return res.status(405).json({ error: 'Method not allowed' });
   } catch (error: any) {
     console.error('API /api/taxonomies error:', error);
+    if (req.method === 'POST' || req.method === 'PUT') {
+      return res.status(500).json({
+        error: 'Не вдалося зберегти рубрики та теми в базі даних: ' + (error?.message || 'помилка сервера'),
+      });
+    }
     return res.status(200).json(inMemoryTaxonomies);
   }
 }
+

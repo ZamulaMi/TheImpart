@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Globe, Save, Check, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Save, Check, RefreshCw, Info } from 'lucide-react';
 import { SiteSocialLinks, SocialLinksSet } from '../types';
 import { formatErrorMessage } from '../utils/errors';
 
@@ -8,6 +8,54 @@ interface SocialLinksManagerProps {
   onSaveSocialLinks: (links: SiteSocialLinks) => Promise<void> | void;
   onRefreshSocialLinks?: () => Promise<void>;
   showNotification: (msg: string) => void;
+}
+
+const PLATFORM_KEYS: Array<keyof SocialLinksSet> = [
+  'telegram',
+  'instagram',
+  'x',
+  'youtube',
+  'threads',
+  'facebook',
+];
+
+function normalizePlatformUrl(platform: keyof SocialLinksSet, raw: string): string {
+  const trimmed = (raw || '').trim();
+  if (!trimmed) return '';
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+
+  // Якщо введено домен без протоколу (наприклад t.me/xxx, instagram.com/xxx, www.youtube.com/@xxx)
+  if (trimmed.includes('.') && !trimmed.startsWith('@')) {
+    return `https://${trimmed.replace(/^\/+/, '')}`;
+  }
+
+  // Якщо введено @username або просто username — формуємо коректне посилання для відповідної соцмережі
+  const cleanHandle = trimmed.replace(/^@+/, '').replace(/^\/+|\/+$/g, '');
+  if (!cleanHandle) return '';
+
+  switch (platform) {
+    case 'telegram':
+      return `https://t.me/${cleanHandle}`;
+    case 'instagram':
+      return `https://www.instagram.com/${cleanHandle}`;
+    case 'x':
+      return `https://x.com/${cleanHandle}`;
+    case 'youtube':
+      return `https://www.youtube.com/@${cleanHandle}`;
+    case 'threads':
+      return `https://www.threads.net/@${cleanHandle}`;
+    case 'facebook':
+      return `https://www.facebook.com/${cleanHandle}`;
+    default:
+      return `https://${cleanHandle}`;
+  }
+}
+
+function countActiveLinks(set?: SocialLinksSet): number {
+  if (!set) return 0;
+  return PLATFORM_KEYS.filter((k) => Boolean(set[k]?.trim())).length;
 }
 
 export const SocialLinksManager: React.FC<SocialLinksManagerProps> = ({
@@ -21,19 +69,24 @@ export const SocialLinksManager: React.FC<SocialLinksManagerProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const hasChangesRef = useRef(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!hasChanges) {
+    hasChangesRef.current = hasChanges;
+  }, [hasChanges]);
+
+  useEffect(() => {
+    if (!hasChangesRef.current) {
       setFormData(socialLinks);
     }
-  }, [socialLinks, hasChanges]);
+  }, [socialLinks]);
 
   // Завантаження актуальних даних при відкритті менеджера
   useEffect(() => {
     if (onRefreshSocialLinks) {
-      onRefreshSocialLinks();
+      onRefreshSocialLinks().catch(() => {});
     }
   }, []);
 
@@ -43,10 +96,11 @@ export const SocialLinksManager: React.FC<SocialLinksManagerProps> = ({
     setErrorMessage(null);
     setSuccessMessage(null);
     try {
-      await onRefreshSocialLinks();
+      hasChangesRef.current = false;
       setHasChanges(false);
+      await onRefreshSocialLinks();
       const timeStr = new Date().toLocaleTimeString('uk-UA');
-      setSuccessMessage(`✓ Свіжі посилання успішно завантажено з сервера (${timeStr})`);
+      setSuccessMessage(`✓ Свіжі посилання успішно завантажено з бази даних (${timeStr})`);
       showNotification('Дані оновлено з сервера!');
     } catch {
       setErrorMessage('Не вдалося зв\'язатися з сервером');
@@ -65,6 +119,7 @@ export const SocialLinksManager: React.FC<SocialLinksManagerProps> = ({
         [platform]: value,
       },
     }));
+    hasChangesRef.current = true;
     setHasChanges(true);
     setErrorMessage(null);
     setSuccessMessage(null);
@@ -77,6 +132,7 @@ export const SocialLinksManager: React.FC<SocialLinksManagerProps> = ({
         ...(prev?.[sourceLang] || {}),
       },
     }));
+    hasChangesRef.current = true;
     setHasChanges(true);
     setErrorMessage(null);
     setSuccessMessage(null);
@@ -87,43 +143,29 @@ export const SocialLinksManager: React.FC<SocialLinksManagerProps> = ({
     );
   };
 
-  const normalizeUrl = (raw: string): string => {
-    const trimmed = (raw || '').trim();
-    if (!trimmed) return '';
-    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-      return trimmed;
-    }
-    // Якщо введено t.me/xxx, instagram.com/xxx тощо - додаємо https://
-    if (trimmed.includes('.') || trimmed.startsWith('@')) {
-      const clean = trimmed.startsWith('@') ? trimmed.slice(1) : trimmed;
-      return `https://${clean}`;
-    }
-    return trimmed;
-  };
-
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
     setErrorMessage(null);
     setSuccessMessage(null);
 
-    // Безпечно нормалізуємо посилання перед збереженням
+    // Безпечно нормалізуємо посилання перед збереженням (підтримує повні URL, домени та @нікнейми)
     const normalizedData: SiteSocialLinks = {
       ua: {
-        telegram: normalizeUrl(formData?.ua?.telegram || ''),
-        instagram: normalizeUrl(formData?.ua?.instagram || ''),
-        x: normalizeUrl(formData?.ua?.x || ''),
-        youtube: normalizeUrl(formData?.ua?.youtube || ''),
-        threads: normalizeUrl(formData?.ua?.threads || ''),
-        facebook: normalizeUrl(formData?.ua?.facebook || ''),
+        telegram: normalizePlatformUrl('telegram', formData?.ua?.telegram || ''),
+        instagram: normalizePlatformUrl('instagram', formData?.ua?.instagram || ''),
+        x: normalizePlatformUrl('x', formData?.ua?.x || ''),
+        youtube: normalizePlatformUrl('youtube', formData?.ua?.youtube || ''),
+        threads: normalizePlatformUrl('threads', formData?.ua?.threads || ''),
+        facebook: normalizePlatformUrl('facebook', formData?.ua?.facebook || ''),
       },
       en: {
-        telegram: normalizeUrl(formData?.en?.telegram || ''),
-        instagram: normalizeUrl(formData?.en?.instagram || ''),
-        x: normalizeUrl(formData?.en?.x || ''),
-        youtube: normalizeUrl(formData?.en?.youtube || ''),
-        threads: normalizeUrl(formData?.en?.threads || ''),
-        facebook: normalizeUrl(formData?.en?.facebook || ''),
+        telegram: normalizePlatformUrl('telegram', formData?.en?.telegram || ''),
+        instagram: normalizePlatformUrl('instagram', formData?.en?.instagram || ''),
+        x: normalizePlatformUrl('x', formData?.en?.x || ''),
+        youtube: normalizePlatformUrl('youtube', formData?.en?.youtube || ''),
+        threads: normalizePlatformUrl('threads', formData?.en?.threads || ''),
+        facebook: normalizePlatformUrl('facebook', formData?.en?.facebook || ''),
       },
     };
 
@@ -131,10 +173,11 @@ export const SocialLinksManager: React.FC<SocialLinksManagerProps> = ({
 
     try {
       await onSaveSocialLinks(normalizedData);
+      hasChangesRef.current = false;
       setHasChanges(false);
       const timeStr = new Date().toLocaleTimeString('uk-UA');
-      setSuccessMessage(`✓ Успішно збережено на сервері та в базі даних (${timeStr})`);
-      showNotification('Посилання на соц. мережі успішно збережено на сервері!');
+      setSuccessMessage(`✓ Успішно збережено в базі даних (${timeStr}) — посилання вже відображаються на сайті`);
+      showNotification('Посилання на соц. мережі успішно збережено!');
     } catch (err: any) {
       console.error('Save social links error:', err);
       setErrorMessage(
@@ -147,6 +190,8 @@ export const SocialLinksManager: React.FC<SocialLinksManagerProps> = ({
   };
 
   const currentLinks = formData[activeLangTab] || {};
+  const uaCount = countActiveLinks(formData?.ua);
+  const enCount = countActiveLinks(formData?.en);
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -157,7 +202,7 @@ export const SocialLinksManager: React.FC<SocialLinksManagerProps> = ({
             Керування соціальними мережами
           </h1>
           <p className="text-xs text-neutral-500 mt-1">
-            Налаштуйте посилання на соц. мережі у футері окремо для української та англійської версій сайту.
+            Налаштуйте посилання на соц. мережі у футері сайту (можна вводити повний URL або @нікнейм).
           </p>
         </div>
 
@@ -189,6 +234,14 @@ export const SocialLinksManager: React.FC<SocialLinksManagerProps> = ({
             <span>{isSaving ? 'Збереження...' : 'Зберегти зміни'}</span>
           </button>
         </div>
+      </div>
+
+      {/* Пояснення відображення між мовами */}
+      <div className="mb-6 p-3.5 bg-neutral-50 border border-neutral-200/80 rounded-lg flex items-start gap-2.5 text-xs text-neutral-600">
+        <Info className="w-4 h-4 text-neutral-500 mt-0.5 shrink-0" />
+        <span>
+          Ви можете задати окремі канали для <strong>UA</strong> та <strong>EN</strong> версій сайту. Якщо посилання на соцмережу вказано лише в одній мовній вкладці, воно автоматично відображатиметься в обох версіях сайту, доки для іншої мови не буде вказано окреме посилання.
+        </span>
       </div>
 
       {/* Повідомлення про успіх */}
@@ -223,30 +276,36 @@ export const SocialLinksManager: React.FC<SocialLinksManagerProps> = ({
       )}
 
       {/* Вкладки вибору мови: UA та EN */}
-      <div className="flex items-center justify-between border-b border-neutral-200 pb-px mb-8">
+      <div className="flex flex-wrap items-center justify-between border-b border-neutral-200 pb-px mb-8 gap-2">
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => setActiveLangTab('ua')}
-            className={`flex items-center gap-2 px-5 py-2.5 text-xs sm:text-sm font-medium border-b-2 transition-all cursor-pointer ${
+            className={`flex items-center gap-2 px-4 sm:px-5 py-2.5 text-xs sm:text-sm font-medium border-b-2 transition-all cursor-pointer ${
               activeLangTab === 'ua'
                 ? 'border-black text-black'
                 : 'border-transparent text-neutral-400 hover:text-neutral-700'
             }`}
           >
             <span>Українська версія (UA)</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-neutral-100 text-neutral-600 font-mono">
+              {uaCount}
+            </span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveLangTab('en')}
-            className={`flex items-center gap-2 px-5 py-2.5 text-xs sm:text-sm font-medium border-b-2 transition-all cursor-pointer ${
+            className={`flex items-center gap-2 px-4 sm:px-5 py-2.5 text-xs sm:text-sm font-medium border-b-2 transition-all cursor-pointer ${
               activeLangTab === 'en'
                 ? 'border-black text-black'
                 : 'border-transparent text-neutral-400 hover:text-neutral-700'
             }`}
           >
             <span>English version (EN)</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-neutral-100 text-neutral-600 font-mono">
+              {enCount}
+            </span>
           </button>
         </div>
 
