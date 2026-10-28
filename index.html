@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="uk" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>The Impart — Простір знань про технології та культуру</title>
+    <meta name="description" content="Простір знань про технології та культуру. Актуальні статті, новини, огляди та есе від редакції The Impart." />
+    <link rel="canonical" href="https://www.theimpart.com/" />
+    <meta property="og:site_name" content="The Impart" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="The Impart — Простір знань про технології та культуру" />
+    <meta property="og:description" content="Простір знань про технології та культуру. Актуальні статті, новини, огляди та есе від редакції The Impart." />
+    <meta property="og:url" content="https://www.theimpart.com/" />
+    <meta property="og:image" content="https://www.theimpart.com/favicon.svg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="The Impart — Простір знань про технології та культуру" />
+    <meta name="twitter:description" content="Простір знань про технології та культуру. Актуальні статті, новини, огляди та есе від редакції The Impart." />
+    <meta name="twitter:image" content="https://www.theimpart.com/favicon.svg" />
+    <script id="theimpart-structured-data" type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "The Impart",
+        "alternateName": "TheImpart",
+        "url": "https://www.theimpart.com/",
+        "description": "Простір знань про технології та культуру. Актуальні статті, новини, огляди та есе від редакції The Impart.",
+        "inLanguage": "uk",
+        "publisher": {
+          "@type": "Organization",
+          "name": "The Impart",
+          "alternateName": "TheImpart",
+          "url": "https://www.theimpart.com/",
+          "logo": {
+            "@type": "ImageObject",
+            "url": "https://www.theimpart.com/favicon.svg"
+          }
+        }
+      }
+    </script>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="shortcut icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,600&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,600&display=swap" rel="stylesheet" />
+    <script>
+      (function() {
+        try {
+          localStorage.removeItem('the_impart_theme_v1');
+          var p = (window.location.pathname || '/').replace(/\/+$/, '') || '/';
+          if (
+            p === '/admin' || p.indexOf('/admin/') === 0 ||
+            p === '/login' || p.indexOf('/login/') === 0 ||
+            p === '/editor' || p.indexOf('/editor/') === 0
+          ) {
+            document.documentElement.classList.remove('dark');
+            document.documentElement.setAttribute('data-theme', 'light');
+            return;
+          }
+          var saved = localStorage.getItem('the_impart_theme_v2');
+          if (saved === 'dark') {
+            document.documentElement.classList.add('dark');
+            document.documentElement.setAttribute('data-theme', 'dark');
+          } else {
+            // Світла (біла) тема є основною за замовчуванням
+            document.documentElement.classList.remove('dark');
+            document.documentElement.setAttribute('data-theme', 'light');
+          }
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body class="bg-white text-black dark:bg-[#222222] dark:text-[#cbcbcb] transition-colors duration-200">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

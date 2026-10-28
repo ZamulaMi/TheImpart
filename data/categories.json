@@ -1,0 +1,30 @@
+[
+  {
+    "id": "cat-nav-articles",
+    "slug": "articles",
+    "name": "Статті",
+    "nameEn": "Articles",
+    "rubrics": [
+      "Статті"
+    ],
+    "rubricsEn": [
+      "Articles"
+    ],
+    "topics": [],
+    "order": 0
+  },
+  {
+    "id": "cat-nav-reviews",
+    "slug": "reviews",
+    "name": "Огляди",
+    "nameEn": "Reviews",
+    "rubrics": [
+      "Огляди"
+    ],
+    "rubricsEn": [
+      "Reviews"
+    ],
+    "topics": [],
+    "order": 1
+  }
+]

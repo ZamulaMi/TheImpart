@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">
+  <url>
+    <loc>https://www.theimpart.com/article/1793103844152</loc>
+    <news:news>
+      <news:publication>
+        <news:name>The Impart</news:name>
+        <news:language>uk</news:language>
+      </news:publication>
+      <news:publication_date>2026-10-27T12:28:57Z</news:publication_date>
+      <news:title>Huawei знайшла, куди заховати роутер: на книжкову полицю</news:title>
+    </news:news>
+  </url>
+  <url>
+    <loc>https://www.theimpart.com/article/1793103844152?lang=en</loc>
+    <news:news>
+      <news:publication>
+        <news:name>The Impart</news:name>
+        <news:language>en</news:language>
+      </news:publication>
+      <news:publication_date>2026-10-27T12:28:57Z</news:publication_date>
+      <news:title>Huawei Found a Hiding Spot for Your Router: the Bookshelf</news:title>
+    </news:news>
+  </url>
+  <url>
+    <loc>https://www.theimpart.com/article/1793101749879</loc>
+    <news:news>
+      <news:publication>
+        <news:name>The Impart</news:name>
+        <news:language>uk</news:language>
+      </news:publication>
+      <news:publication_date>2026-10-27T11:55:06Z</news:publication_date>
+      <news:title>iPad mini нарешті отримав OLED</news:title>
+    </news:news>
+  </url>
+  <url>
+    <loc>https://www.theimpart.com/article/1793101749879?lang=en</loc>
+    <news:news>
+      <news:publication>
+        <news:name>The Impart</news:name>
+        <news:language>en</news:language>
+      </news:publication>
+      <news:publication_date>2026-10-27T11:55:06Z</news:publication_date>
+      <news:title>OLED has finally landed on the iPad mini</news:title>
+    </news:news>
+  </url>
+</urlset>

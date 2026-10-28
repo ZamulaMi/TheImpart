@@ -1,0 +1,8 @@
+{
+  "name": "TheImpart",
+  "description": "Простір знань про технології та культуру. Актуальні статті, новини, огляди та есе від редакції The Impart.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

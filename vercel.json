@@ -1,0 +1,185 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "framework": "vite",
+  "headers": [
+    {
+      "source": "/robots.txt",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "text/plain; charset=utf-8"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=3600, s-maxage=86400, stale-while-revalidate=86400"
+        }
+      ]
+    },
+    {
+      "source": "/sitemap.xml",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/xml; charset=utf-8"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, s-maxage=60, stale-while-revalidate=60"
+        }
+      ]
+    },
+    {
+      "source": "/sitemap-(.*).xml",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/xml; charset=utf-8"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, s-maxage=60, stale-while-revalidate=60"
+        }
+      ]
+    },
+    {
+      "source": "/news-sitemap.xml",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/xml; charset=utf-8"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, s-maxage=30, stale-while-revalidate=30"
+        }
+      ]
+    },
+    {
+      "source": "/news-sitemap-(.*).xml",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/xml; charset=utf-8"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, s-maxage=30, stale-while-revalidate=30"
+        }
+      ]
+    },
+    {
+      "source": "/favicon.ico",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "image/x-icon"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400"
+        }
+      ]
+    },
+    {
+      "source": "/favicon.svg",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "image/svg+xml"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400"
+        }
+      ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/sitemap.xml",
+      "destination": "/api/sitemap"
+    },
+    {
+      "source": "/sitemap-:part.xml",
+      "destination": "/api/sitemap?part=:part"
+    },
+    {
+      "source": "/news-sitemap.xml",
+      "destination": "/api/news-sitemap"
+    },
+    {
+      "source": "/news-sitemap-:lang.xml",
+      "destination": "/api/news-sitemap?lang=:lang"
+    },
+    {
+      "source": "/uploads/cover-:id",
+      "destination": "/api/render-page?__asset=cover&id=:id"
+    },
+    {
+      "source": "/api/article-image",
+      "destination": "/api/render-page?__asset=cover"
+    },
+    {
+      "source": "/api/article-meta",
+      "destination": "/api/render-page"
+    },
+    {
+      "source": "/api/auth/:path*",
+      "destination": "/api/auth"
+    },
+    {
+      "source": "/api/articles/:path*",
+      "destination": "/api/articles"
+    },
+    {
+      "source": "/api/categories/:path*",
+      "destination": "/api/settings?__endpoint=categories"
+    },
+    {
+      "source": "/api/categories",
+      "destination": "/api/settings?__endpoint=categories"
+    },
+    {
+      "source": "/api/taxonomies/:path*",
+      "destination": "/api/settings?__endpoint=taxonomies"
+    },
+    {
+      "source": "/api/taxonomies",
+      "destination": "/api/settings?__endpoint=taxonomies"
+    },
+    {
+      "source": "/api/pages/:path*",
+      "destination": "/api/settings?__endpoint=pages"
+    },
+    {
+      "source": "/api/pages",
+      "destination": "/api/settings?__endpoint=pages"
+    },
+    {
+      "source": "/api/settings/:path*",
+      "destination": "/api/settings"
+    },
+    {
+      "source": "/article/:id*",
+      "destination": "/api/render-page?pathname=/article/:id*"
+    },
+    {
+      "source": "/",
+      "destination": "/api/render-page?pathname=/"
+    },
+    {
+      "source": "/:path((?!api/|assets/|uploads/|robots\\.txt|favicon\\.(?:svg|ico)|sitemap\\.xml|sitemap-[0-9]+\\.xml|news-sitemap\\.xml|news-sitemap-[a-zA-Z-]+\\.xml|.*\\.(?:js|mjs|css|map|svg|png|jpg|jpeg|webp|gif|avif|ico|woff|woff2|ttf|otf|json|webmanifest)$).*)",
+      "destination": "/api/render-page?pathname=/:path"
+    }
+  ]
+}
