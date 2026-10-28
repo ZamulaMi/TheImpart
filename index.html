@@ -61,11 +61,6 @@
         color: #cbcbcb;
         color-scheme: dark;
       }
-      html.is-booting *,
-      html.is-booting *::before,
-      html.is-booting *::after {
-        transition: none !important;
-      }
       .sr-only {
         position: absolute;
         width: 1px;
@@ -81,7 +76,6 @@
     <script>
       (function() {
         try {
-          document.documentElement.classList.add('is-booting');
           localStorage.removeItem('the_impart_theme_v1');
           var p = (window.location.pathname || '/').replace(/\/+$/, '') || '/';
           if (
@@ -102,16 +96,7 @@
               document.documentElement.setAttribute('data-theme', 'light');
             }
           }
-          window.addEventListener('DOMContentLoaded', function() {
-            requestAnimationFrame(function() {
-              requestAnimationFrame(function() {
-                document.documentElement.classList.remove('is-booting');
-              });
-            });
-          }, { once: true });
-        } catch (e) {
-          document.documentElement.classList.remove('is-booting');
-        }
+        } catch (e) {}
       })();
     </script>
   </head>

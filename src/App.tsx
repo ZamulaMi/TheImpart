@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import { Search, X, Menu, ChevronDown, Sparkles, Eye } from 'lucide-react';
 import {
   Article,
@@ -31,9 +31,7 @@ const AdminPanel = lazy(() =>
 const AdminLogin = lazy(() =>
   import('./components/AdminLogin').then((m) => ({ default: m.AdminLogin }))
 );
-const PopularArticlesView = lazy(() =>
-  import('./components/PopularArticlesView').then((m) => ({ default: m.PopularArticlesView }))
-);
+import { PopularArticlesView } from './components/PopularArticlesView';
 import { getStoredTaxonomies, saveStoredTaxonomies } from './utils/taxonomies';
 import {
   DEFAULT_NAV_CATEGORIES,
@@ -249,6 +247,7 @@ export interface ArticleCardProps {
   aspectRatio: '26/10.5' | '16/9' | '3/4';
   isHero?: boolean;
   eagerLoad?: boolean;
+  staggerIndex?: number;
   viewsOverride?: number;
   viewsLabel?: string;
   onSelect: (id: string) => void;
@@ -260,10 +259,29 @@ export function ArticleCard({
   aspectRatio,
   isHero = false,
   eagerLoad = false,
+  staggerIndex = 0,
   viewsOverride,
   viewsLabel,
   onSelect,
 }: ArticleCardProps) {
+  const [isImgLoaded, setIsImgLoaded] = useState(false);
+  const cardRef = useRef<HTMLAnchorElement>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  useLayoutEffect(() => {
+    const delayMs = Math.min(Math.max(0, staggerIndex) % 10, 9) * 45;
+    cardRef.current?.style.setProperty('--card-delay', `${delayMs}ms`);
+  }, [staggerIndex]);
+
+  useLayoutEffect(() => {
+    const imgEl = imgRef.current;
+    if (imgEl && imgEl.complete && imgEl.naturalWidth > 0) {
+      setIsImgLoaded(true);
+    } else {
+      setIsImgLoaded(false);
+    }
+  }, [article.coverImage]);
+
   const isEn = siteLang === 'en';
   const rawTitle = isEn && article.titleEn ? article.titleEn : article.title;
   const title = typeof rawTitle === 'string' ? rawTitle : (rawTitle as any)?.name || String(rawTitle || '');
@@ -309,6 +327,7 @@ export function ArticleCard({
 
   return (
     <a
+      ref={cardRef}
       id={`article-card-${article.id}`}
       href={cardHref}
       onClick={(e) => {
@@ -317,11 +336,12 @@ export function ArticleCard({
           onSelect(article.id);
         }
       }}
-      className={`block group relative cursor-pointer overflow-hidden rounded-xl bg-neutral-900 border border-transparent dark:border-[#333333]/80 shadow-md hover:shadow-xl transition-shadow duration-300 flex flex-col justify-end no-underline text-inherit ${aspectClass}`}
+      className={`animate-card-fade-in block group relative cursor-pointer overflow-hidden rounded-xl bg-neutral-900 border border-transparent dark:border-[#333333]/80 shadow-md hover:shadow-xl transition-shadow duration-300 flex flex-col justify-end no-underline text-inherit ${aspectClass}`}
     >
-      {/* Фонове фото */}
+      {/* Фонове фото з плавною появою після декодування */}
       {article.coverImage ? (
         <img
+          ref={imgRef}
           src={article.coverImage}
           alt={title}
           width={imgWidth}
@@ -329,7 +349,11 @@ export function ArticleCard({
           loading={isHero || eagerLoad ? 'eager' : 'lazy'}
           fetchPriority={isHero ? 'high' : 'auto'}
           decoding="async"
-          className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
+          onLoad={() => setIsImgLoaded(true)}
+          onError={() => setIsImgLoaded(true)}
+          className={`absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-[opacity,transform] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+            isImgLoaded ? 'opacity-100' : 'opacity-0 scale-[1.015]'
+          }`}
         />
       ) : (
         <div className="absolute inset-0 bg-neutral-900 flex items-center justify-center text-white/30 font-serif text-sm">
@@ -2242,13 +2266,14 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
                           {/* Ряд 1: 2 горизонтальні фото (16:9) */}
                           {sRow1.length > 0 && (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-5">
-                              {sRow1.map((article) => (
+                              {sRow1.map((article, idx) => (
                                 <ArticleCard
                                   key={article.id}
                                   article={article}
                                   siteLang={siteLang}
                                   aspectRatio="16/9"
                                   eagerLoad
+                                  staggerIndex={idx}
                                   onSelect={(id) => handleSelectArticle(id)}
                                 />
                               ))}
@@ -2258,12 +2283,13 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
                           {/* Ряд 2: 3 вертикальні фото (3:4) */}
                           {sRow2.length > 0 && (
                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 lg:gap-5">
-                              {sRow2.map((article) => (
+                              {sRow2.map((article, idx) => (
                                 <ArticleCard
                                   key={article.id}
                                   article={article}
                                   siteLang={siteLang}
                                   aspectRatio="3/4"
+                                  staggerIndex={2 + idx}
                                   onSelect={(id) => handleSelectArticle(id)}
                                 />
                               ))}
@@ -2273,12 +2299,13 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
                           {/* Ряд 3: 2 горизонтальні фото (16:9) */}
                           {sRow3.length > 0 && (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-5">
-                              {sRow3.map((article) => (
+                              {sRow3.map((article, idx) => (
                                 <ArticleCard
                                   key={article.id}
                                   article={article}
                                   siteLang={siteLang}
                                   aspectRatio="16/9"
+                                  staggerIndex={5 + idx}
                                   onSelect={(id) => handleSelectArticle(id)}
                                 />
                               ))}
@@ -2288,12 +2315,13 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
                           {/* Ряд 4: 3 вертикальні фото (3:4) */}
                           {sRow4.length > 0 && (
                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 lg:gap-5">
-                              {sRow4.map((article) => (
+                              {sRow4.map((article, idx) => (
                                 <ArticleCard
                                   key={article.id}
                                   article={article}
                                   siteLang={siteLang}
                                   aspectRatio="3/4"
+                                  staggerIndex={7 + idx}
                                   onSelect={(id) => handleSelectArticle(id)}
                                 />
                               ))}
@@ -2384,23 +2412,15 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
               })()}
             </div>
           ) : activeCategorySection === 'popular' ? (
-            <Suspense
-              fallback={
-                <div className="py-24 text-center">
-                  <div className="inline-block w-5 h-5 border-2 border-neutral-300 dark:border-neutral-700 border-t-black dark:border-t-white rounded-full animate-spin" />
-                </div>
-              }
-            >
-              <PopularArticlesView
-                articles={basePublishedArticles}
-                siteLang={siteLang}
-                taxonomies={taxonomies}
-                onSelectArticle={handleSelectArticle}
-                onSelectCategory={handleSelectCategoryFromArticle}
-                onSelectTopic={handleSelectTopicFromArticle}
-                onBackToMain={() => handleSelectSection(null)}
-              />
-            </Suspense>
+            <PopularArticlesView
+              articles={basePublishedArticles}
+              siteLang={siteLang}
+              taxonomies={taxonomies}
+              onSelectArticle={handleSelectArticle}
+              onSelectCategory={handleSelectCategoryFromArticle}
+              onSelectTopic={handleSelectTopicFromArticle}
+              onBackToMain={() => handleSelectSection(null)}
+            />
           ) : activeCategorySection ? (
             /* Сторінка обраної рубрики (Новини / Статті / Огляди) */
             <div
@@ -2525,13 +2545,14 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
                           {/* Ряд 1: 2 горизонтальні фото (16:9) */}
                           {catRow1.length > 0 && (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-5">
-                              {catRow1.map((article) => (
+                              {catRow1.map((article, idx) => (
                                 <ArticleCard
                                   key={article.id}
                                   article={article}
                                   siteLang={siteLang}
                                   aspectRatio="16/9"
                                   eagerLoad
+                                  staggerIndex={idx}
                                   onSelect={(id) => handleSelectArticle(id)}
                                 />
                               ))}
@@ -2541,12 +2562,13 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
                           {/* Ряд 2: 3 вертикальні фото (3:4) */}
                           {catRow2.length > 0 && (
                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 lg:gap-5">
-                              {catRow2.map((article) => (
+                              {catRow2.map((article, idx) => (
                                 <ArticleCard
                                   key={article.id}
                                   article={article}
                                   siteLang={siteLang}
                                   aspectRatio="3/4"
+                                  staggerIndex={2 + idx}
                                   onSelect={(id) => handleSelectArticle(id)}
                                 />
                               ))}
@@ -2556,12 +2578,13 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
                           {/* Ряд 3: 2 горизонтальні фото (16:9) */}
                           {catRow3.length > 0 && (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-5">
-                              {catRow3.map((article) => (
+                              {catRow3.map((article, idx) => (
                                 <ArticleCard
                                   key={article.id}
                                   article={article}
                                   siteLang={siteLang}
                                   aspectRatio="16/9"
+                                  staggerIndex={5 + idx}
                                   onSelect={(id) => handleSelectArticle(id)}
                                 />
                               ))}
@@ -2571,12 +2594,13 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
                           {/* Ряд 4: 3 вертикальні фото (3:4) */}
                           {catRow4.length > 0 && (
                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 lg:gap-5">
-                              {catRow4.map((article) => (
+                              {catRow4.map((article, idx) => (
                                 <ArticleCard
                                   key={article.id}
                                   article={article}
                                   siteLang={siteLang}
                                   aspectRatio="3/4"
+                                  staggerIndex={7 + idx}
                                   onSelect={(id) => handleSelectArticle(id)}
                                 />
                               ))}
@@ -2740,6 +2764,7 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
                                 siteLang={siteLang}
                                 aspectRatio="26/10.5"
                                 isHero
+                                staggerIndex={0}
                                 onSelect={(id) => handleSelectArticle(id)}
                               />
                             ))}
@@ -2749,13 +2774,14 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
                         {/* Ряд 2: 2 фото горизонтального формату */}
                         {row2.length > 0 && (
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-5">
-                            {row2.map((article) => (
+                            {row2.map((article, idx) => (
                               <ArticleCard
                                 key={article.id}
                                 article={article}
                                 siteLang={siteLang}
                                 aspectRatio="16/9"
                                 eagerLoad
+                                staggerIndex={1 + idx}
                                 onSelect={(id) => handleSelectArticle(id)}
                               />
                             ))}
@@ -2765,12 +2791,13 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
                         {/* Ряд 3: 3 фото вертикального формату */}
                         {row3.length > 0 && (
                           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 lg:gap-5">
-                            {row3.map((article) => (
+                            {row3.map((article, idx) => (
                               <ArticleCard
                                 key={article.id}
                                 article={article}
                                 siteLang={siteLang}
                                 aspectRatio="3/4"
+                                staggerIndex={3 + idx}
                                 onSelect={(id) => handleSelectArticle(id)}
                               />
                             ))}
@@ -2780,12 +2807,13 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
                         {/* Ряд 4: 2 фото горизонтального формату */}
                         {row4.length > 0 && (
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-5">
-                            {row4.map((article) => (
+                            {row4.map((article, idx) => (
                               <ArticleCard
                                 key={article.id}
                                 article={article}
                                 siteLang={siteLang}
                                 aspectRatio="16/9"
+                                staggerIndex={6 + idx}
                                 onSelect={(id) => handleSelectArticle(id)}
                               />
                             ))}
@@ -2795,12 +2823,13 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
                         {/* Ряд 5: 2 фото горизонтального формату */}
                         {row5.length > 0 && (
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-5">
-                            {row5.map((article) => (
+                            {row5.map((article, idx) => (
                               <ArticleCard
                                 key={article.id}
                                 article={article}
                                 siteLang={siteLang}
                                 aspectRatio="16/9"
+                                staggerIndex={8 + idx}
                                 onSelect={(id) => handleSelectArticle(id)}
                               />
                             ))}
@@ -2808,42 +2837,49 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
                         )}
 
                         {/* Наступні статті (10+): чередування 3 вертикальних і 2 горизонтальних */}
-                        {subsequentRows.map((row, rIdx) => {
-                          if (row.type === 'vertical') {
+                        {(() => {
+                          let runningStagger = 0;
+                          return subsequentRows.map((row, rIdx) => {
+                            const rowStart = runningStagger;
+                            runningStagger += row.articles.length;
+                            if (row.type === 'vertical') {
+                              return (
+                                <div
+                                  key={`sub_vert_${rIdx}`}
+                                  className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 lg:gap-5"
+                                >
+                                  {row.articles.map((article, idx) => (
+                                    <ArticleCard
+                                      key={article.id}
+                                      article={article}
+                                      siteLang={siteLang}
+                                      aspectRatio="3/4"
+                                      staggerIndex={rowStart + idx}
+                                      onSelect={(id) => handleSelectArticle(id)}
+                                    />
+                                  ))}
+                                </div>
+                              );
+                            }
                             return (
                               <div
-                                key={`sub_vert_${rIdx}`}
-                                className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 lg:gap-5"
+                                key={`sub_horiz_${rIdx}`}
+                                className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-5"
                               >
-                                {row.articles.map((article) => (
+                                {row.articles.map((article, idx) => (
                                   <ArticleCard
                                     key={article.id}
                                     article={article}
                                     siteLang={siteLang}
-                                    aspectRatio="3/4"
+                                    aspectRatio="16/9"
+                                    staggerIndex={rowStart + idx}
                                     onSelect={(id) => handleSelectArticle(id)}
                                   />
                                 ))}
                               </div>
                             );
-                          }
-                          return (
-                            <div
-                              key={`sub_horiz_${rIdx}`}
-                              className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-5"
-                            >
-                              {row.articles.map((article) => (
-                                <ArticleCard
-                                  key={article.id}
-                                  article={article}
-                                  siteLang={siteLang}
-                                  aspectRatio="16/9"
-                                  onSelect={(id) => handleSelectArticle(id)}
-                                />
-                              ))}
-                            </div>
-                          );
-                        })}
+                          });
+                        })()}
 
                         {/* Ексклюзивна для головної сторінки функція "Показати більше" з виразним жирнішим шрифтом */}
                         {basePublishedArticles.length > visibleCount && (

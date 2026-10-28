@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { ArrowLeft, Eye, EyeOff, Globe } from 'lucide-react';
 import { Article, SiteLanguage } from '../types';
 import { formatTimeAgoOrDate } from '../utils/date';
@@ -30,6 +30,17 @@ export const ArticleView: React.FC<ArticleViewProps> = ({
   const hasEnVersion = Boolean(article.titleEn?.trim() && article.contentEn?.trim());
 
   const [views, setViews] = useState<number>(article.views ?? 0);
+  const [isCoverLoaded, setIsCoverLoaded] = useState<boolean>(false);
+  const coverImgRef = useRef<HTMLImageElement>(null);
+
+  useLayoutEffect(() => {
+    const imgEl = coverImgRef.current;
+    if (imgEl && imgEl.complete && imgEl.naturalWidth > 0) {
+      setIsCoverLoaded(true);
+    } else {
+      setIsCoverLoaded(false);
+    }
+  }, [article.id, article.coverImage]);
 
   const isHidden = isEn
     ? article.publishedEn === false || !article.publishedEn
@@ -316,13 +327,18 @@ export const ArticleView: React.FC<ArticleViewProps> = ({
         <figure className="mb-8 sm:mb-10 w-full sm:w-[calc(26/34*100%)] mx-auto article-full-mobile">
           <div className="w-full aspect-[26/14.5] overflow-hidden bg-neutral-100 dark:bg-[#181818] rounded-none sm:rounded-xl md:rounded-2xl border-y sm:border border-transparent dark:border-[#2e2e2e] shadow-xs">
             <img
+              ref={coverImgRef}
               src={article.coverImage}
               alt={title}
               width={1600}
               height={892}
               fetchPriority="high"
               decoding="async"
-              className="w-full h-full object-cover"
+              onLoad={() => setIsCoverLoaded(true)}
+              onError={() => setIsCoverLoaded(true)}
+              className={`w-full h-full object-cover transition-opacity duration-600 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                isCoverLoaded ? 'opacity-100' : 'opacity-0'
+              }`}
             />
           </div>
           {coverCaption && (

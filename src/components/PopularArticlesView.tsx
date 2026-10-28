@@ -56,10 +56,14 @@ export const PopularArticlesView: React.FC<PopularArticlesViewProps> = ({
     setPage(1);
   }, [period, selectedCategory, selectedTopic]);
 
-  // Завантажуємо показники за період, коли обрано будь-який проміжок часу (включаючи 'all')
+  // Завантажуємо показники за період (для 'all' оновлюємо фоново без блокування відображення статей)
   useEffect(() => {
     let isMounted = true;
-    setIsLoadingStats(true);
+    if (period !== 'all') {
+      setIsLoadingStats(true);
+    } else {
+      setIsLoadingStats(false);
+    }
 
     fetchStatsSummary({ period }).then((res) => {
       if (isMounted) {
@@ -530,11 +534,14 @@ export const PopularArticlesView: React.FC<PopularArticlesViewProps> = ({
           </div>
         ) : (
           /* Відображення карток популярних статей */
-          <div className="space-y-6 sm:space-y-8">
+          <div
+            key={`popular_grid_${period}_${selectedCategory}_${selectedTopic}_${safePage}`}
+            className="space-y-6 sm:space-y-8 animate-article-fade-in"
+          >
             {/* Ряд 1: 2 горизонтальні картки (16:9) */}
             {row1.length > 0 && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-                {row1.map((article) => {
+                {row1.map((article, idx) => {
                   const itemViews = getArticleViews(article);
 
                   return (
@@ -543,6 +550,8 @@ export const PopularArticlesView: React.FC<PopularArticlesViewProps> = ({
                       article={article}
                       siteLang={siteLang}
                       aspectRatio="16/9"
+                      eagerLoad
+                      staggerIndex={idx}
                       viewsOverride={itemViews}
                       viewsLabel={getPeriodViewsLabel()}
                       onSelect={onSelectArticle}
@@ -555,7 +564,7 @@ export const PopularArticlesView: React.FC<PopularArticlesViewProps> = ({
             {/* Ряд 2: 3 вертикальні картки (3:4) */}
             {row2.length > 0 && (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
-                {row2.map((article) => {
+                {row2.map((article, idx) => {
                   const itemViews = getArticleViews(article);
 
                   return (
@@ -564,6 +573,7 @@ export const PopularArticlesView: React.FC<PopularArticlesViewProps> = ({
                       article={article}
                       siteLang={siteLang}
                       aspectRatio="3/4"
+                      staggerIndex={2 + idx}
                       viewsOverride={itemViews}
                       viewsLabel={getPeriodViewsLabel()}
                       onSelect={onSelectArticle}
@@ -576,7 +586,7 @@ export const PopularArticlesView: React.FC<PopularArticlesViewProps> = ({
             {/* Ряд 3: 2 горизонтальні картки (16:9) */}
             {row3.length > 0 && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-                {row3.map((article) => {
+                {row3.map((article, idx) => {
                   const itemViews = getArticleViews(article);
 
                   return (
@@ -585,6 +595,7 @@ export const PopularArticlesView: React.FC<PopularArticlesViewProps> = ({
                       article={article}
                       siteLang={siteLang}
                       aspectRatio="16/9"
+                      staggerIndex={5 + idx}
                       viewsOverride={itemViews}
                       viewsLabel={getPeriodViewsLabel()}
                       onSelect={onSelectArticle}
@@ -597,7 +608,7 @@ export const PopularArticlesView: React.FC<PopularArticlesViewProps> = ({
             {/* Ряд 4: 3 вертикальні картки (3:4) */}
             {row4.length > 0 && (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
-                {row4.map((article) => {
+                {row4.map((article, idx) => {
                   const itemViews = getArticleViews(article);
 
                   return (
@@ -606,6 +617,7 @@ export const PopularArticlesView: React.FC<PopularArticlesViewProps> = ({
                       article={article}
                       siteLang={siteLang}
                       aspectRatio="3/4"
+                      staggerIndex={7 + idx}
                       viewsOverride={itemViews}
                       viewsLabel={getPeriodViewsLabel()}
                       onSelect={onSelectArticle}

@@ -9,10 +9,10 @@ import {
   CheckSquare,
   Square,
   ZoomIn,
-  X,
 } from 'lucide-react';
 import { markdownToHtml } from '../utils/editorConverter';
 import { PhotoCarousel, CarouselSlide } from './PhotoCarousel';
+import { ImageLightboxModal } from './ImageLightboxModal';
 
 interface ContentRendererProps {
   content: string;
@@ -637,10 +637,54 @@ function cleanHtmlForTheme(raw: string): string {
     });
 }
 
+interface ActiveLightboxState {
+  slides: CarouselSlide[];
+  initialIndex: number;
+  overallCaption?: string;
+  onSyncIndex?: (index: number) => void;
+}
+
 export const ContentRenderer: React.FC<ContentRendererProps> = ({ content }) => {
-  const [lightboxImg, setLightboxImg] = useState<{ src: string; caption?: string } | null>(null);
+  const [lightboxState, setLightboxState] = useState<ActiveLightboxState | null>(null);
 
   if (!content) return null;
+
+  const openSingleLightbox = (src: string, caption?: string) => {
+    setLightboxState({
+      slides: [{ url: src, caption }],
+      initialIndex: 0,
+    });
+  };
+
+  const openCarouselLightbox = (
+    src: string,
+    slideCaption?: string,
+    allSlides?: CarouselSlide[],
+    slideIdx?: number,
+    overallCap?: string,
+    onSyncIndex?: (idx: number) => void
+  ) => {
+    if (allSlides && allSlides.length > 0) {
+      setLightboxState({
+        slides: allSlides,
+        initialIndex: slideIdx ?? 0,
+        overallCaption: overallCap,
+        onSyncIndex,
+      });
+    } else {
+      openSingleLightbox(src, slideCaption || overallCap);
+    }
+  };
+
+  const lightboxNode = lightboxState ? (
+    <ImageLightboxModal
+      slides={lightboxState.slides}
+      initialIndex={lightboxState.initialIndex}
+      overallCaption={lightboxState.overallCaption}
+      onSyncIndex={lightboxState.onSyncIndex}
+      onClose={() => setLightboxState(null)}
+    />
+  ) : null;
 
   // Якщо контент містить HTML-розмітку від візуального редактора
   const isHtml = /<(p|h[1-6]|table|blockquote|ul|ol|figure|div|mark|a)[^>]*>/i.test(content);
@@ -685,7 +729,9 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({ content }) => 
               key={`carousel_${matchIdx}`}
               images={slides}
               caption={cap}
-              onOpenLightbox={(src, c) => setLightboxImg({ src, caption: c })}
+              onOpenLightbox={(src, c, allSlides, idx, syncIdx) =>
+                openCarouselLightbox(src, c, allSlides, idx, cap, syncIdx)
+              }
             />
           );
         } else {
@@ -717,42 +763,14 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({ content }) => 
             if (target.tagName.toLowerCase() === 'img' && !target.closest('.article-carousel-wrapper')) {
               const img = target as HTMLImageElement;
               const figcaption = target.closest('figure')?.querySelector('figcaption')?.textContent;
-              setLightboxImg({ src: img.src, caption: figcaption || img.alt });
+              openSingleLightbox(img.src, figcaption || img.alt);
             }
             const spoilerEl = target.closest('.tg-spoiler') as HTMLElement;
             if (spoilerEl) spoilerEl.classList.toggle('revealed');
           }}
         >
           {chunks}
-          {lightboxImg && (
-            <div
-              onClick={() => setLightboxImg(null)}
-              className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 sm:p-8 animate-fade-in"
-            >
-              <button
-                onClick={() => setLightboxImg(null)}
-                className="absolute top-4 right-4 p-2 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full transition-colors cursor-pointer"
-                title="Закрити (Esc)"
-              >
-                <X className="w-6 h-6" />
-              </button>
-              <div
-                onClick={(e) => e.stopPropagation()}
-                className="max-w-5xl max-h-[90vh] flex flex-col items-center"
-              >
-                <img
-                  src={lightboxImg.src}
-                  alt={lightboxImg.caption || 'Зображення'}
-                  className="max-h-[82vh] w-auto max-w-full rounded-md object-contain shadow-2xl"
-                />
-                {lightboxImg.caption && (
-                  <p className="text-white/80 text-xs sm:text-sm mt-3 text-center font-sans max-w-xl">
-                    {lightboxImg.caption}
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
+          {lightboxNode}
         </div>
       );
     }
@@ -768,7 +786,7 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({ content }) => 
             if (target.tagName.toLowerCase() === 'img' && !target.closest('.article-carousel-wrapper')) {
               const img = target as HTMLImageElement;
               const figcaption = target.closest('figure')?.querySelector('figcaption')?.textContent;
-              setLightboxImg({ src: img.src, caption: figcaption || img.alt });
+              openSingleLightbox(img.src, figcaption || img.alt);
             }
 
             // Клік на Telegram-спойлер для розкриття/приховування
@@ -779,36 +797,7 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({ content }) => 
           }}
         />
 
-        {/* Lightbox модальне вікно для фотографій */}
-        {lightboxImg && (
-          <div
-            onClick={() => setLightboxImg(null)}
-            className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 sm:p-8 animate-fade-in"
-          >
-            <button
-              onClick={() => setLightboxImg(null)}
-              className="absolute top-4 right-4 p-2 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full transition-colors cursor-pointer"
-              title="Закрити (Esc)"
-            >
-              <X className="w-6 h-6" />
-            </button>
-            <div
-              onClick={(e) => e.stopPropagation()}
-              className="max-w-5xl max-h-[90vh] flex flex-col items-center"
-            >
-              <img
-                src={lightboxImg.src}
-                alt={lightboxImg.caption || 'Зображення'}
-                className="max-h-[82vh] w-auto max-w-full rounded-md object-contain shadow-2xl"
-              />
-              {lightboxImg.caption && (
-                <p className="text-white/80 text-xs sm:text-sm mt-3 text-center font-sans max-w-xl">
-                  {lightboxImg.caption}
-                </p>
-              )}
-            </div>
-          </div>
-        )}
+        {lightboxNode}
       </div>
     );
   }
@@ -885,7 +874,7 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({ content }) => 
           return (
             <figure key={idx} className="my-8 sm:my-10 not-italic">
               <div
-                onClick={() => setLightboxImg({ src: block.src, caption: block.caption })}
+                onClick={() => openSingleLightbox(block.src, block.caption)}
                 className="group relative overflow-hidden rounded-lg bg-neutral-100 border border-neutral-200/80 shadow-xs cursor-zoom-in"
               >
                 <img
@@ -921,7 +910,9 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({ content }) => 
               key={idx}
               images={block.images}
               caption={block.caption}
-              onOpenLightbox={(src, c) => setLightboxImg({ src, caption: c })}
+              onOpenLightbox={(src, c, allSlides, slideIdx, syncIdx) =>
+                openCarouselLightbox(src, c, allSlides, slideIdx, block.caption, syncIdx)
+              }
             />
           );
         }
@@ -1122,36 +1113,7 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({ content }) => 
         );
       })}
 
-      {/* Lightbox модальне вікно для фотографій */}
-      {lightboxImg && (
-        <div
-          onClick={() => setLightboxImg(null)}
-          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 sm:p-8 animate-fade-in"
-        >
-          <button
-            onClick={() => setLightboxImg(null)}
-            className="absolute top-4 right-4 p-2 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full transition-colors cursor-pointer"
-            title="Закрити (Esc)"
-          >
-            <X className="w-6 h-6" />
-          </button>
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="max-w-5xl max-h-[90vh] flex flex-col items-center"
-          >
-            <img
-              src={lightboxImg.src}
-              alt={lightboxImg.caption || 'Зображення'}
-              className="max-h-[82vh] w-auto max-w-full rounded-md object-contain shadow-2xl"
-            />
-            {lightboxImg.caption && (
-              <p className="text-white/80 text-xs sm:text-sm mt-3 text-center font-sans max-w-xl">
-                {lightboxImg.caption}
-              </p>
-            )}
-          </div>
-        </div>
-      )}
+      {lightboxNode}
     </div>
   );
 };
