@@ -19,7 +19,8 @@ export interface CachedPublicRenderData<T = unknown> {
 
 const DEFAULT_CACHE_TTL_MS = 30_000;
 const DEFAULT_NEWS_CACHE_TTL_MS = 15_000;
-const DEFAULT_RENDER_CACHE_TTL_MS = 15_000;
+const DEFAULT_RENDER_CACHE_TTL_MS = 60_000;
+const DEFAULT_RENDER_STALE_MAX_AGE_MS = 10 * 60_000;
 
 let cachedPayload: CachedSitemapPayload | null = null;
 const cachedNewsPayloads = new Map<NewsSitemapCacheKey, CachedNewsSitemapPayload>();
@@ -84,10 +85,25 @@ export function getCachedPublicRenderData<T>(
 ): T | null {
   if (!cachedRenderData) return null;
   if (Date.now() - cachedRenderData.generatedAt > ttlMs) {
-    cachedRenderData = null;
     return null;
   }
   return cachedRenderData.data as T;
+}
+
+export function getCachedPublicRenderDataWithStale<T>(
+  freshTtlMs: number = DEFAULT_RENDER_CACHE_TTL_MS,
+  staleMaxAgeMs: number = DEFAULT_RENDER_STALE_MAX_AGE_MS
+): { data: T; isStale: boolean } | null {
+  if (!cachedRenderData) return null;
+  const age = Date.now() - cachedRenderData.generatedAt;
+  if (age <= freshTtlMs) {
+    return { data: cachedRenderData.data as T, isStale: false };
+  }
+  if (age <= staleMaxAgeMs) {
+    return { data: cachedRenderData.data as T, isStale: true };
+  }
+  cachedRenderData = null;
+  return null;
 }
 
 export function setCachedPublicRenderData<T>(

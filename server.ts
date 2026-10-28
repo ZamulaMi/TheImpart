@@ -14,7 +14,7 @@ import categoriesHandler, { getNavCategories } from './api/_categories';
 import statsHandler, { ensureStatsLoaded } from './api/stats';
 import { verifyEditorOrAdminToken } from './api/_auth_utils';
 import articleImageHandler from './api/_article_image';
-import renderPageHandler, { generatePageResponse } from './api/render-page';
+import renderPageHandler, { generatePageResponse, loadPublicRenderBundle } from './api/render-page';
 import sitemapHandler from './api/sitemap';
 import newsSitemapHandler from './api/news-sitemap';
 import { triggerSitemapAutoUpdate } from './api/_sitemap_sync';
@@ -25,8 +25,9 @@ const __dirname = path.dirname(__filename);
 
 dotenv.config({ override: true });
 
-// Завантаження збереженої статистики з Neon PostgreSQL при запуску сервера
+// Завантаження збереженої статистики та прогрів публічного кешу рендерингу при запуску сервера
 ensureStatsLoaded().catch(() => {});
+loadPublicRenderBundle().catch(() => {});
 
 // Автоматична синхронізація sitemap.xml та news-sitemap.xml на диску та в кеші при старті
 triggerSitemapAutoUpdate();

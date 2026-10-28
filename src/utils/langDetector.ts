@@ -196,11 +196,24 @@ export async function refineInitialLanguageViaGeo(
     const saved = localStorage.getItem(LANG_STORAGE_KEY);
     if (saved === 'en' || saved === 'ua') return;
 
-    // Якщо браузер українською чи російською — уже гарантовано 'ua'
-    if (isBrowserUkOrRu()) {
+    // Якщо браузер українською/російською або часовий пояс належить регіону — вже синхронно визначено 'ua'
+    if (isBrowserUkOrRu() || isPostSovietTimezone()) {
       localStorage.setItem(LANG_STORAGE_KEY, 'ua');
       return;
     }
+
+    // Відкладаємо перевірку /api/geo, щоб не конкурувати за мережу під час першого рендеру сторінки
+    await new Promise<void>((resolve) => {
+      if (typeof (window as any).requestIdleCallback === 'function') {
+        (window as any).requestIdleCallback(() => resolve(), { timeout: 1200 });
+      } else {
+        setTimeout(resolve, 400);
+      }
+    });
+
+    // Повторна перевірка на випадок, якщо користувач уже перемкнув мову вручну
+    const latestSaved = localStorage.getItem(LANG_STORAGE_KEY);
+    if (latestSaved === 'en' || latestSaved === 'ua') return;
 
     // Запит до локального API сервера з таймаутом
     const controller = new AbortController();

@@ -25,37 +25,13 @@ html.dark body {
   color: #cbcbcb;
 }
 
-@keyframes titleSlideDown {
-  0% {
-    transform: translateY(-105%);
-    opacity: 0;
-  }
-  15% {
-    opacity: 0.3;
-  }
-  100% {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
 .animate-title-slide-down {
-  animation: titleSlideDown 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.5s both;
+  opacity: 1;
+  transform: none;
 }
 
-/* Плавна поява сторінок та статей */
-@keyframes articleFadeIn {
-  0% {
-    opacity: 0;
-    transform: translateY(14px);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes articleFadeInMobile {
+/* Плавна поява сторінок та статей під час клієнтської навігації (без стрибків макета) */
+@keyframes subtleContentFadeIn {
   0% {
     opacity: 0;
   }
@@ -65,45 +41,33 @@ html.dark body {
 }
 
 .animate-article-fade-in {
-  animation: articleFadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-@media (max-width: 768px) {
-  .animate-article-fade-in {
-    animation: articleFadeInMobile 0.3s ease-out both !important;
-  }
-}
-
-/* Делікатна поява карток статей */
-@keyframes cardSmoothFadeIn {
-  0% {
-    opacity: 0;
-    transform: translateY(10px) scale(0.995);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
+  animation: subtleContentFadeIn 0.2s ease-out both;
 }
 
 .animate-card-fade-in {
-  animation: cardSmoothFadeIn 0.65s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-/* М'яка поява контенту */
-@keyframes pageContentFadeIn {
-  0% {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  animation: subtleContentFadeIn 0.2s ease-out both;
 }
 
 .animate-page-fade-in {
-  animation: pageContentFadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: subtleContentFadeIn 0.2s ease-out both;
+}
+
+/* Під час першого завантаження/оновлення сторінки та при prefers-reduced-motion — миттєве стабільне відображення без мерехтіння */
+html.is-booting .animate-article-fade-in,
+html.is-booting .animate-card-fade-in,
+html.is-booting .animate-page-fade-in {
+  animation: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-article-fade-in,
+  .animate-card-fade-in,
+  .animate-page-fade-in {
+    animation: none !important;
+    transition: none !important;
+  }
 }
 
 /* Telegram Spoiler (Reader view: без сірого блоку та рамок, лише розмиття тексту) */

@@ -10,7 +10,7 @@ import sitemapHandler, {
 } from './sitemap.ts';
 import newsSitemapHandler from './news-sitemap.ts';
 import {
-  getCachedPublicRenderData,
+  getCachedPublicRenderDataWithStale,
   setCachedPublicRenderData,
   getSitemapCacheVersion,
 } from './_sitemap_cache.ts';
@@ -443,68 +443,101 @@ function matchesHeaderSectionServer(article: Article, section: string): boolean 
   return false;
 }
 
-async function loadPublicRenderBundle(): Promise<PublicRenderBundle> {
-  const cached = getCachedPublicRenderData<PublicRenderBundle>();
-  if (cached) {
-    return cached;
+let bundleRefreshPromise: Promise<PublicRenderBundle> | null = null;
+
+async function fetchFreshPublicRenderBundle(): Promise<PublicRenderBundle> {
+  if (bundleRefreshPromise) {
+    return bundleRefreshPromise;
   }
 
-  const versionBefore = getSitemapCacheVersion();
-  const [sitemapData, socialLinks, taxonomies] = await Promise.all([
-    fetchSitemapSourceData(),
-    getSocialLinks(),
-    getTaxonomies(),
-    ensureStatsLoaded().catch(() => {}),
-  ]);
+  bundleRefreshPromise = (async () => {
+    try {
+      const versionBefore = getSitemapCacheVersion();
+      const [sitemapData, socialLinks, taxonomies] = await Promise.all([
+        fetchSitemapSourceData(),
+        getSocialLinks(),
+        getTaxonomies(),
+        ensureStatsLoaded().catch(() => {}),
+      ]);
 
-  const publicArticles = sortArticlesChronologically(
-    sitemapData.articles
-      .map((art) => {
-        const sanitized = sanitizePublicArticle(art as any);
-        if (!sanitized) return null;
-        return {
-          ...sanitized,
-          views: getTotalViews(sanitized.id),
-        } as Article;
-      })
-      .filter((item): item is Article => item !== null)
-  );
+      const publicArticles = sortArticlesChronologically(
+        sitemapData.articles
+          .map((art) => {
+            const sanitized = sanitizePublicArticle(art as any);
+            if (!sanitized) return null;
+            return {
+              ...sanitized,
+              views: getTotalViews(sanitized.id),
+            } as Article;
+          })
+          .filter((item): item is Article => item !== null)
+      );
 
-  const navCategories = Array.isArray(sitemapData.categories)
-    ? sitemapData.categories
-    : DEFAULT_NAV_CATEGORIES;
+      const navCategories = Array.isArray(sitemapData.categories)
+        ? sitemapData.categories
+        : DEFAULT_NAV_CATEGORIES;
 
-  const staticPages: SitePagesData = sitemapData.staticPages || DEFAULT_PAGES_DATA;
+      const staticPages: SitePagesData = sitemapData.staticPages || DEFAULT_PAGES_DATA;
 
-  const bundle: PublicRenderBundle = {
-    articles: publicArticles,
-    navCategories,
-    staticPages,
-    socialLinks,
-    taxonomies,
-  };
+      const bundle: PublicRenderBundle = {
+        articles: publicArticles,
+        navCategories,
+        staticPages,
+        socialLinks,
+        taxonomies,
+      };
 
-  setCachedPublicRenderData(bundle, versionBefore);
-  return bundle;
+      setCachedPublicRenderData(bundle, versionBefore);
+      return bundle;
+    } finally {
+      bundleRefreshPromise = null;
+    }
+  })();
+
+  return bundleRefreshPromise;
 }
 
-function renderServerHeaderHtml(navCategories: NavigationCategory[], isEn: boolean): string {
-  const langSuffix = isEn ? '?lang=en' : '';
-  const catLinks = navCategories
-    .map((cat) => {
-      const label = isEn && cat.nameEn ? cat.nameEn : cat.name;
-      return `<a href="/${encodeURIComponent(cat.slug)}${langSuffix}" class="px-2 py-1 text-sm no-underline">${escapeHtml(label)}</a>`;
-    })
-    .join('');
+export async function loadPublicRenderBundle(): Promise<PublicRenderBundle> {
+  const cachedEntry = getCachedPublicRenderDataWithStale<PublicRenderBundle>();
+  if (cachedEntry) {
+    if (cachedEntry.isStale) {
+      fetchFreshPublicRenderBundle().catch(() => {});
+    }
+    return cachedEntry.data;
+  }
 
-  return `<header class="site-header w-full bg-white dark:bg-[#111111] py-3.5 sm:py-4">
-  <div class="w-[92%] sm:w-[90%] md:w-[calc(26/34*100%)] mx-auto flex items-center justify-between min-h-[38px]">
-    <a href="/${langSuffix}" class="text-xl sm:text-2xl font-medium tracking-tight text-black dark:text-[#ffffff] no-underline">${escapeHtml(SITE_NAME)}</a>
-    <nav aria-label="${isEn ? 'Site sections' : 'Розділи сайту'}" class="hidden md:flex items-center gap-6 text-sm font-semibold">
-      <a href="/news${langSuffix}" class="no-underline">${isEn ? 'News' : 'Новини'}</a>
-      ${catLinks}
-      <a href="/popular${langSuffix}" class="no-underline">${isEn ? 'Popular' : 'Популярні'}</a>
+  return fetchFreshPublicRenderBundle();
+}
+
+function renderServerHeaderHtml(_navCategories: NavigationCategory[], isEn: boolean): string {
+  const langSuffix = isEn ? '?lang=en' : '';
+
+  return `<header class="site-header w-full bg-white dark:bg-[#111111] md:bg-white/95 md:dark:bg-[#111111]/95 md:backdrop-blur-md sticky top-0 z-40 py-3.5 sm:py-4 border-none">
+  <div class="relative w-[92%] sm:w-[90%] md:w-[calc(26/34*100%)] mx-auto flex items-center justify-between min-h-[38px]">
+    <div class="flex items-center z-20">
+      <span aria-hidden="true" class="md:hidden flex items-center justify-center w-9 h-9 text-black dark:text-[#cbcbcb]">
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+      </span>
+      <div class="hidden md:block overflow-hidden py-0.5">
+        <a href="/${langSuffix}" class="block text-xl sm:text-2xl font-medium tracking-tight text-black dark:text-[#ffffff] select-none text-left no-underline" style="font-family: 'Playfair Display', Georgia, serif">${escapeHtml(SITE_NAME)}</a>
+      </div>
+    </div>
+    <div class="md:hidden absolute left-1/2 -translate-x-1/2 z-10">
+      <a href="/${langSuffix}" class="block text-xl font-medium tracking-tight text-black dark:text-[#ffffff] select-none text-center whitespace-nowrap no-underline" style="font-family: 'Playfair Display', Georgia, serif">${escapeHtml(SITE_NAME)}</a>
+    </div>
+    <nav aria-label="${isEn ? 'Site sections' : 'Розділи сайту'}" class="hidden md:flex absolute left-1/2 -translate-x-1/2 items-center gap-6 lg:gap-9 z-10">
+      <a href="/news${langSuffix}" class="py-1 text-sm md:text-[15px] text-neutral-800 dark:text-[#cbcbcb] font-semibold no-underline">${isEn ? 'News' : 'Новини'}</a>
+      <span class="py-1 flex items-center gap-1.5 text-sm md:text-[15px] text-neutral-800 dark:text-[#cbcbcb] font-semibold select-none">
+        <span>${isEn ? 'Categories' : 'Категорії'}</span>
+        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+      </span>
+      <a href="/popular${langSuffix}" class="py-1 text-sm md:text-[15px] text-neutral-800 dark:text-[#cbcbcb] font-semibold no-underline">${isEn ? 'Popular' : 'Популярні'}</a>
     </nav>
+    <div class="z-20 flex items-center justify-end -mr-1 sm:-mr-2">
+      <span aria-hidden="true" class="text-black dark:text-[#cbcbcb] flex items-center justify-center w-10 h-10">
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      </span>
+    </div>
   </div>
 </header>`;
 }
@@ -520,83 +553,240 @@ function renderServerFooterHtml(isEn: boolean, socialLinks?: SiteSocialLinks): s
     return secondary || '';
   };
 
-  const socialItems: Array<{ label: string; href: string }> = [
-    { label: 'Telegram', href: resolveLink('telegram') },
-    { label: 'Instagram', href: resolveLink('instagram') },
-    { label: 'X (Twitter)', href: resolveLink('x') },
-    { label: 'YouTube', href: resolveLink('youtube') },
-    { label: 'Threads', href: resolveLink('threads') },
-    { label: 'Facebook', href: resolveLink('facebook') },
-  ].filter((item) => Boolean(item.href));
+  const telegramHref = resolveLink('telegram');
+  const instagramHref = resolveLink('instagram');
+  const xHref = resolveLink('x');
+  const youtubeHref = resolveLink('youtube');
+  const threadsHref = resolveLink('threads');
+  const facebookHref = resolveLink('facebook');
+
+  const socialIcons: string[] = [];
+  if (telegramHref) {
+    socialIcons.push(
+      `<a href="${escapeHtml(telegramHref)}" target="_blank" rel="noreferrer" aria-label="Telegram" class="footer-social-link text-neutral-400 dark:text-[#888888]"><svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M21.927 3.513a1.498 1.498 0 0 0-1.505-.288L2.348 10.38c-1.048.423-1.042 1.34-.191 1.602l4.639 1.448 10.741-6.777c.507-.308.972-.143.59.196l-8.704 7.854-.319 4.768c.467 0 .673-.214.935-.467l2.247-2.185 4.675 3.453c.861.475 1.482.23 1.696-.8l3.068-14.457c.314-1.26-.481-1.831-1.308-1.442z"/></svg></a>`
+    );
+  }
+  if (instagramHref) {
+    socialIcons.push(
+      `<a href="${escapeHtml(instagramHref)}" target="_blank" rel="noreferrer" aria-label="Instagram" class="footer-social-link text-neutral-400 dark:text-[#888888]"><svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg></a>`
+    );
+  }
+  if (xHref) {
+    socialIcons.push(
+      `<a href="${escapeHtml(xHref)}" target="_blank" rel="noreferrer" aria-label="X (Twitter)" class="footer-social-link text-neutral-400 dark:text-[#888888]"><svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a>`
+    );
+  }
+  if (youtubeHref) {
+    socialIcons.push(
+      `<a href="${escapeHtml(youtubeHref)}" target="_blank" rel="noreferrer" aria-label="YouTube" class="footer-social-link text-neutral-400 dark:text-[#888888]"><svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg></a>`
+    );
+  }
+  if (threadsHref) {
+    socialIcons.push(
+      `<a href="${escapeHtml(threadsHref)}" target="_blank" rel="noreferrer" aria-label="Threads" class="footer-social-link text-neutral-400 dark:text-[#888888]"><svg class="w-5 h-5 fill-none stroke-current stroke-[1.8]" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.25 12c0 4.5-3.25 8.25-8 8.25-4.5 0-7.75-3.5-7.75-8.25S6.75 3.75 12 3.75c4.75 0 7.5 3 7.75 7.25M16 11.25c0 3-1.75 4.5-4 4.5s-3.75-1.5-3.75-3.75S9.75 8.25 12 8.25c2.75 0 4 2 4 4.5v1.25c0 1.5-.75 2.5-2 2.5s-2-.75-2-2.25"/></svg></a>`
+    );
+  }
+  if (facebookHref) {
+    socialIcons.push(
+      `<a href="${escapeHtml(facebookHref)}" target="_blank" rel="noreferrer" aria-label="Facebook" class="footer-social-link text-neutral-400 dark:text-[#888888]"><svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg></a>`
+    );
+  }
 
   const socialHtml =
-    socialItems.length > 0
-      ? `<div class="mt-3.5 flex items-center gap-4 text-xs text-neutral-400 dark:text-[#888888]">
-        ${socialItems
-          .map(
-            (item) =>
-              `<a href="${escapeHtml(item.href)}" target="_blank" rel="noreferrer" aria-label="${escapeHtml(item.label)}" class="footer-social-link text-neutral-400 dark:text-[#888888]">${escapeHtml(item.label)}</a>`
-          )
-          .join('')}
-      </div>`
+    socialIcons.length > 0
+      ? `<div class="mt-3.5 flex items-center gap-4 text-neutral-400 dark:text-[#888888]">${socialIcons.join('')}</div>`
       : '';
 
-  return `<footer class="site-footer w-full bg-white dark:bg-[#111111] py-10 sm:py-12">
+  const year = new Date().getFullYear();
+
+  return `<div class="w-full h-16 sm:h-24 bg-gradient-to-b from-white to-neutral-100 dark:from-[#222222] dark:to-[#111111] mt-8 sm:mt-12 pointer-events-none select-none"></div>
+<footer class="site-footer w-full bg-white dark:bg-[#111111] py-10 sm:py-12 border-none">
   <div class="w-[92%] sm:w-[90%] md:w-[calc(26/34*100%)] mx-auto flex flex-col sm:flex-row sm:items-end justify-between gap-6">
-    <div>
-      <span class="text-base sm:text-lg text-black dark:text-[#ffffff]">${escapeHtml(SITE_NAME)}</span>
+    <div class="flex flex-col items-start">
+      <span class="text-base sm:text-lg font-normal tracking-normal text-black dark:text-[#ffffff] font-sans select-none">${escapeHtml(SITE_NAME)}</span>
       <p class="text-xs text-neutral-400 dark:text-[#777777] mt-1">${escapeHtml(
         isEn ? 'A knowledge space for tech and culture.' : 'Простір знань про технології та культуру.'
       )}</p>
-      <div class="mt-2.5 flex items-center gap-3 text-xs">
-        <a href="/about${langSuffix}" class="text-neutral-500 dark:text-[#999999]">${isEn ? 'About Project' : 'Про проєкт'}</a>
-        <span>•</span>
-        <a href="/contacts${langSuffix}" class="text-neutral-500 dark:text-[#999999]">${isEn ? 'Contacts' : 'Контакти'}</a>
+      <div class="mt-2.5 flex items-center gap-3 text-xs font-sans">
+        <a href="/about${langSuffix}" class="text-neutral-500 dark:text-[#999999] no-underline">${isEn ? 'About Project' : 'Про проєкт'}</a>
+        <span class="text-neutral-300 dark:text-neutral-700">•</span>
+        <a href="/contacts${langSuffix}" class="text-neutral-500 dark:text-[#999999] no-underline">${isEn ? 'Contacts' : 'Контакти'}</a>
       </div>
       ${socialHtml}
+    </div>
+    <div class="flex flex-col sm:items-end gap-3">
+      <div class="flex items-center gap-3 text-xs tracking-wider font-sans select-none">
+        <span class="w-8 h-8"></span>
+        <span class="text-neutral-300 dark:text-neutral-700">|</span>
+        <div class="flex items-center">
+          <span class="py-1 ${!isEn ? 'font-medium text-black dark:text-[#ffffff]' : 'text-neutral-400 dark:text-[#777777]'}">UA</span>
+          <span class="mx-2 text-neutral-300 dark:text-neutral-700">/</span>
+          <span class="py-1 ${isEn ? 'font-medium text-black dark:text-[#ffffff]' : 'text-neutral-400 dark:text-[#777777]'}">EN</span>
+        </div>
+      </div>
+      <div class="flex items-center gap-3 text-xs text-neutral-400 dark:text-[#777777] font-sans">
+        <span>© ${year} ${escapeHtml(SITE_NAME)}. All rights reserved.</span>
+      </div>
     </div>
   </div>
 </footer>`;
 }
 
-function renderFeedListHtml(articles: Article[], isEn: boolean): string {
+function renderServerArticleCardHtml(
+  art: Article,
+  isEn: boolean,
+  aspectRatio: '26/10.5' | '16/9' | '3/4',
+  isHero: boolean,
+  eagerLoad: boolean
+): string {
+  const title = stripHtml(isEn && art.titleEn ? art.titleEn : art.title) || SITE_NAME;
+  const rawCategoriesList =
+    isEn && art.categoriesEn && art.categoriesEn.length > 0
+      ? art.categoriesEn
+      : art.categories && art.categories.length > 0
+      ? art.categories
+      : isEn && art.categoryEn
+      ? [art.categoryEn]
+      : art.category
+      ? [art.category]
+      : [];
+  const category = rawCategoriesList.map((c) => stripHtml(String(c))).filter(Boolean).join(' / ');
+  const pubUa = hasPublishedUkrainianVersion(art);
+  const pubEn = hasPublishedEnglishVersion(art);
+  const href = `/article/${encodeURIComponent(art.id)}${isEn && pubUa && pubEn ? '?lang=en' : ''}`;
+  const publishedIso = resolveArticlePublishedIso(art);
+
+  const aspectClass =
+    aspectRatio === '26/10.5'
+      ? 'w-full aspect-[16/10] sm:aspect-[21/9] md:aspect-[26/10.5] min-h-[240px] sm:min-h-[340px] md:min-h-[390px]'
+      : aspectRatio === '16/9'
+      ? 'w-full aspect-[16/10] sm:aspect-[16/9] min-h-[190px]'
+      : 'w-full aspect-[16/10] sm:aspect-[4/5] md:aspect-[3/4] min-h-[190px]';
+
+  const titleClass =
+    aspectRatio === '26/10.5'
+      ? 'text-xl sm:text-2xl md:text-3xl lg:text-4xl'
+      : aspectRatio === '16/9'
+      ? 'text-base sm:text-lg md:text-xl lg:text-2xl line-clamp-3'
+      : 'text-base sm:text-lg lg:text-xl line-clamp-3';
+
+  const imgWidth = aspectRatio === '3/4' ? 900 : 1200;
+  const imgHeight = aspectRatio === '26/10.5' ? 485 : aspectRatio === '16/9' ? 675 : 1200;
+  const loadingAttr = isHero
+    ? 'loading="eager" fetchpriority="high" decoding="async"'
+    : eagerLoad
+    ? 'loading="eager" decoding="async"'
+    : 'loading="lazy" decoding="async"';
+
+  return `<a href="${escapeHtml(href)}" class="block group relative overflow-hidden rounded-xl bg-neutral-900 border border-transparent dark:border-[#333333]/80 shadow-md flex flex-col justify-end no-underline text-inherit ${aspectClass}">
+    ${
+      art.coverImage
+        ? `<img src="${escapeHtml(art.coverImage)}" alt="${escapeHtml(title)}" width="${imgWidth}" height="${imgHeight}" ${loadingAttr} class="absolute inset-0 w-full h-full object-cover" />`
+        : `<div class="absolute inset-0 bg-neutral-900 flex items-center justify-center text-white/30 font-serif text-sm">${escapeHtml(SITE_NAME)}</div>`
+    }
+    <div class="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-black/15"></div>
+    <div class="relative z-10 text-white w-full ${isHero ? 'p-5 sm:p-8 md:p-10 lg:p-12 max-w-4xl' : 'p-4 sm:p-5 md:p-6'}">
+      <div class="flex items-center flex-wrap gap-2 text-[11px] sm:text-xs uppercase tracking-wider text-white/80 mb-2">
+        ${category ? `<span class="font-medium text-white/95">${escapeHtml(category)}</span>` : ''}
+        ${
+          publishedIso
+            ? `${category ? '<span class="text-white/40">•</span>' : ''}<time datetime="${escapeHtml(publishedIso)}" class="text-white/80">${escapeHtml(art.date || publishedIso)}</time>`
+            : ''
+        }
+      </div>
+      <h2 class="font-sans font-semibold text-white leading-snug ${titleClass}">${escapeHtml(title)}</h2>
+    </div>
+  </a>`;
+}
+
+function renderFeedListHtml(articles: Article[], isEn: boolean, isHomeFeed = false): string {
   if (articles.length === 0) {
-    return `<p class="py-16 text-center text-neutral-400">${escapeHtml(
+    return `<p class="py-24 text-center text-neutral-400 font-serif italic text-lg sm:text-xl">${escapeHtml(
       isEn ? 'No published articles in this section yet.' : 'У цьому розділі наразі немає опублікованих матеріалів.'
     )}</p>`;
   }
 
-  const cards = articles.slice(0, 20).map((art, index) => {
-    const title = stripHtml(isEn && art.titleEn ? art.titleEn : art.title) || SITE_NAME;
-    const excerpt = stripHtml(isEn && art.excerptEn ? art.excerptEn : art.excerpt);
-    const category = stripHtml(isEn && art.categoryEn ? art.categoryEn : art.category);
-    const pubUa = hasPublishedUkrainianVersion(art);
-    const href = `/article/${encodeURIComponent(art.id)}${isEn && pubUa ? '?lang=en' : ''}`;
-    const publishedIso = resolveArticlePublishedIso(art);
-    const loadingAttr = index === 0 ? 'fetchpriority="high" decoding="async"' : 'loading="lazy" decoding="async"';
+  const visible = articles.slice(0, 10);
 
-    return `<article class="rounded-xl overflow-hidden bg-neutral-900 text-white p-5 sm:p-6">
-      <a href="${escapeHtml(href)}" class="block no-underline text-inherit">
-        ${
-          art.coverImage
-            ? `<img src="${escapeHtml(art.coverImage)}" alt="${escapeHtml(title)}" width="1200" height="675" ${loadingAttr} class="w-full h-auto object-cover rounded-lg mb-3" />`
-            : ''
-        }
-        <div class="text-xs uppercase tracking-wider text-white/80 mb-1.5">
-          ${category ? `<span>${escapeHtml(category)}</span>` : ''}
-          ${
-            publishedIso
-              ? `${category ? ' • ' : ''}<time datetime="${escapeHtml(publishedIso)}">${escapeHtml(art.date || publishedIso)}</time>`
-              : ''
-          }
-        </div>
-        <h2 class="text-xl sm:text-2xl font-semibold text-white leading-snug">${escapeHtml(title)}</h2>
-        ${excerpt ? `<p class="text-sm text-neutral-200 mt-2">${escapeHtml(excerpt)}</p>` : ''}
-      </a>
-    </article>`;
-  });
+  if (isHomeFeed) {
+    const row1 = visible.slice(0, 1);
+    const row2 = visible.slice(1, 3);
+    const row3 = visible.slice(3, 6);
+    const row4 = visible.slice(6, 8);
+    const row5 = visible.slice(8, 10);
 
-  return `<div class="space-y-4 sm:space-y-6">${cards.join('\n')}</div>`;
+    const rowsHtml: string[] = [];
+    if (row1.length > 0) {
+      rowsHtml.push(`<div>${row1.map((a) => renderServerArticleCardHtml(a, isEn, '26/10.5', true, true)).join('')}</div>`);
+    }
+    if (row2.length > 0) {
+      rowsHtml.push(
+        `<div class="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-5">${row2
+          .map((a) => renderServerArticleCardHtml(a, isEn, '16/9', false, true))
+          .join('')}</div>`
+      );
+    }
+    if (row3.length > 0) {
+      rowsHtml.push(
+        `<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 lg:gap-5">${row3
+          .map((a) => renderServerArticleCardHtml(a, isEn, '3/4', false, false))
+          .join('')}</div>`
+      );
+    }
+    if (row4.length > 0) {
+      rowsHtml.push(
+        `<div class="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-5">${row4
+          .map((a) => renderServerArticleCardHtml(a, isEn, '16/9', false, false))
+          .join('')}</div>`
+      );
+    }
+    if (row5.length > 0) {
+      rowsHtml.push(
+        `<div class="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-5">${row5
+          .map((a) => renderServerArticleCardHtml(a, isEn, '16/9', false, false))
+          .join('')}</div>`
+      );
+    }
+
+    return `<div class="space-y-4 sm:space-y-6">${rowsHtml.join('\n')}</div>`;
+  }
+
+  const catRow1 = visible.slice(0, 2);
+  const catRow2 = visible.slice(2, 5);
+  const catRow3 = visible.slice(5, 7);
+  const catRow4 = visible.slice(7, 10);
+
+  const catRowsHtml: string[] = [];
+  if (catRow1.length > 0) {
+    catRowsHtml.push(
+      `<div class="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-5">${catRow1
+        .map((a) => renderServerArticleCardHtml(a, isEn, '16/9', false, true))
+        .join('')}</div>`
+    );
+  }
+  if (catRow2.length > 0) {
+    catRowsHtml.push(
+      `<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 lg:gap-5">${catRow2
+        .map((a) => renderServerArticleCardHtml(a, isEn, '3/4', false, false))
+        .join('')}</div>`
+    );
+  }
+  if (catRow3.length > 0) {
+    catRowsHtml.push(
+      `<div class="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-5">${catRow3
+        .map((a) => renderServerArticleCardHtml(a, isEn, '16/9', false, false))
+        .join('')}</div>`
+    );
+  }
+  if (catRow4.length > 0) {
+    catRowsHtml.push(
+      `<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 lg:gap-5">${catRow4
+        .map((a) => renderServerArticleCardHtml(a, isEn, '3/4', false, false))
+        .join('')}</div>`
+    );
+  }
+
+  return `<div class="space-y-4 sm:space-y-6">${catRowsHtml.join('\n')}</div>`;
 }
 
 function buildHeadMetaBlock(opts: {
@@ -1176,9 +1366,13 @@ export async function generatePageResponse(
 
     const rootHtml = `<div class="min-h-screen w-full bg-white dark:bg-[#222222] text-black dark:text-[#cbcbcb] flex flex-col justify-between">
   ${renderServerHeaderHtml(bundle.navCategories, effectiveIsEn)}
-  <main class="flex-1 w-[92%] sm:w-[90%] md:w-[calc(26/34*100%)] mx-auto pt-2 sm:pt-3.5 pb-10 sm:pb-14">
-    <h1 class="sr-only">${escapeHtml(title)}</h1>
-    ${renderFeedListHtml(feedArticles, effectiveIsEn)}
+  <main class="flex-1 flex flex-col justify-between">
+    <div class="w-full">
+      <div class="w-[92%] sm:w-[90%] md:w-[calc(26/34*100%)] mx-auto pt-2 sm:pt-3.5 pb-10 sm:pb-14">
+        <h1 class="sr-only">${escapeHtml(title)}</h1>
+        ${renderFeedListHtml(feedArticles, effectiveIsEn, true)}
+      </div>
+    </div>
   </main>
   ${renderServerFooterHtml(effectiveIsEn, bundle.socialLinks)}
 </div>`;
@@ -1314,12 +1508,18 @@ export async function generatePageResponse(
 
       const rootHtml = `<div class="min-h-screen w-full bg-white dark:bg-[#222222] text-black dark:text-[#cbcbcb] flex flex-col justify-between">
   ${renderServerHeaderHtml(bundle.navCategories, effectiveIsEn)}
-  <main class="flex-1 w-[92%] sm:w-[90%] md:w-[calc(26/34*100%)] mx-auto pt-2 sm:pt-3.5 pb-10 sm:pb-14">
-    <div class="border-b border-neutral-100 dark:border-[#333333] pb-3 mb-6">
-      <h1 class="text-2xl sm:text-3xl font-medium tracking-tight text-black dark:text-[#ffffff]">${escapeHtml(catTitle)}</h1>
+  <main class="flex-1 flex flex-col justify-between">
+    <div class="w-full">
+      <div class="w-[92%] sm:w-[90%] md:w-[calc(26/34*100%)] mx-auto pt-2 sm:pt-3.5 pb-10 sm:pb-14">
+        <div class="space-y-6 sm:space-y-8">
+          <div class="flex items-baseline justify-between border-b border-neutral-100 dark:border-[#333333] pb-3">
+            <h1 class="text-2xl sm:text-3xl font-medium tracking-tight text-black dark:text-[#ffffff]" style="font-family: 'Playfair Display', Georgia, serif">${escapeHtml(catTitle)}</h1>
+          </div>
+          ${renderFeedListHtml(pageSlice, effectiveIsEn, false)}
+          ${paginationLinks}
+        </div>
+      </div>
     </div>
-    ${renderFeedListHtml(pageSlice, effectiveIsEn)}
-    ${paginationLinks}
   </main>
   ${renderServerFooterHtml(effectiveIsEn, bundle.socialLinks)}
 </div>`;

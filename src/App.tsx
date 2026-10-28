@@ -248,6 +248,7 @@ export interface ArticleCardProps {
   siteLang: SiteLanguage;
   aspectRatio: '26/10.5' | '16/9' | '3/4';
   isHero?: boolean;
+  eagerLoad?: boolean;
   viewsOverride?: number;
   viewsLabel?: string;
   onSelect: (id: string) => void;
@@ -258,6 +259,7 @@ export function ArticleCard({
   siteLang,
   aspectRatio,
   isHero = false,
+  eagerLoad = false,
   viewsOverride,
   viewsLabel,
   onSelect,
@@ -315,7 +317,7 @@ export function ArticleCard({
           onSelect(article.id);
         }
       }}
-      className={`block group relative cursor-pointer overflow-hidden rounded-xl bg-neutral-900 border border-transparent dark:border-[#333333]/80 shadow-md hover:shadow-xl transition-all duration-500 flex flex-col justify-end animate-card-fade-in no-underline text-inherit ${aspectClass}`}
+      className={`block group relative cursor-pointer overflow-hidden rounded-xl bg-neutral-900 border border-transparent dark:border-[#333333]/80 shadow-md hover:shadow-xl transition-shadow duration-300 flex flex-col justify-end no-underline text-inherit ${aspectClass}`}
     >
       {/* Фонове фото */}
       {article.coverImage ? (
@@ -324,9 +326,9 @@ export function ArticleCard({
           alt={title}
           width={imgWidth}
           height={imgHeight}
-          loading={isHero ? 'eager' : 'lazy'}
+          loading={isHero || eagerLoad ? 'eager' : 'lazy'}
           fetchPriority={isHero ? 'high' : 'auto'}
-          decoding={isHero ? 'sync' : 'async'}
+          decoding="async"
           className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
         />
       ) : (
@@ -713,7 +715,9 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
           contacts: { ...DEFAULT_PAGES_DATA.contacts, ...(data.contacts || {}) },
         };
         const sanitized = sanitizeStaticPages(combined);
-        setStaticPages(sanitized);
+        setStaticPages((prev) =>
+          JSON.stringify(prev) === JSON.stringify(sanitized) ? prev : sanitized
+        );
         syncServerInitialPublicData({ staticPages: sanitized });
         try {
           localStorage.setItem(PAGES_STORAGE_KEY, JSON.stringify(sanitized));
@@ -770,7 +774,9 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
     try {
       const cloudData = await fetchTaxonomiesFromCloud(true);
       if (cloudData && Array.isArray(cloudData.categories) && Array.isArray(cloudData.topics)) {
-        setTaxonomies(cloudData);
+        setTaxonomies((prev) =>
+          JSON.stringify(prev) === JSON.stringify(cloudData) ? prev : cloudData
+        );
         saveStoredTaxonomies(cloudData);
         syncServerInitialPublicData({ taxonomies: cloudData });
       }
@@ -808,7 +814,9 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
     try {
       const cloudData = await fetchNavCategoriesFromCloud(true);
       if (Array.isArray(cloudData)) {
-        setNavCategories(cloudData);
+        setNavCategories((prev) =>
+          JSON.stringify(prev) === JSON.stringify(cloudData) ? prev : cloudData
+        );
         saveStoredNavCategories(cloudData);
         syncServerInitialPublicData({ navCategories: cloudData });
       }
@@ -851,10 +859,14 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
     } catch {}
     return [];
   });
+  const articlesCountRef = useRef<number>(articles.length);
+  articlesCountRef.current = articles.length;
+
   const [isLoading, setIsLoading] = useState<boolean>(() => {
+    if (articles.length > 0) return false;
     if (typeof window !== 'undefined') {
       const serverData = getServerInitialPublicData();
-      if (Array.isArray(serverData?.articles) && !getAuthToken()) {
+      if (Array.isArray(serverData?.articles)) {
         return false;
       }
       const parsed = parseRouteFromUrl();
@@ -927,7 +939,9 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
     try {
       const cloudLinks = await fetchSocialLinksFromCloud(true);
       if (cloudLinks && typeof cloudLinks === 'object' && !Array.isArray(cloudLinks)) {
-        setSocialLinks(cloudLinks);
+        setSocialLinks((prev) =>
+          JSON.stringify(prev) === JSON.stringify(cloudLinks) ? prev : cloudLinks
+        );
         syncServerInitialPublicData({ socialLinks: cloudLinks });
         try {
           localStorage.setItem(SOCIAL_STORAGE_KEY, JSON.stringify(cloudLinks));
@@ -978,8 +992,11 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
       }));
   };
 
-  const fetchArticlesFromDb = async () => {
-    setIsLoading(true);
+  const fetchArticlesFromDb = async (options?: { silent?: boolean }) => {
+    const shouldShowSpinner = !options?.silent && articlesCountRef.current === 0;
+    if (shouldShowSpinner) {
+      setIsLoading(true);
+    }
     let loaded = false;
 
     try {
@@ -987,21 +1004,28 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
       if (Array.isArray(cloudArticles)) {
         const sanitized = sanitizeArticleList(cloudArticles);
         const sorted = sortArticlesChronologically(sanitized);
-        setArticles(sorted);
+        setArticles((prev) =>
+          JSON.stringify(prev) === JSON.stringify(sorted) ? prev : sorted
+        );
+        if (!getAuthToken()) {
+          syncServerInitialPublicData({ articles: sorted });
+        }
         try {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(sorted));
         } catch (e) {
           console.error(e);
         }
         loaded = true;
-        setIsLoading(false);
+        if (shouldShowSpinner) {
+          setIsLoading(false);
+        }
         return;
       }
     } catch (e) {
       console.warn('Articles fetch notice:', e);
     }
 
-    if (!loaded) {
+    if (!loaded && articlesCountRef.current === 0) {
       try {
         const cached = localStorage.getItem(STORAGE_KEY);
         if (cached) {
@@ -1018,11 +1042,9 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
       }
     }
 
-    if (!loaded) {
-      setArticles((prev) => (prev && prev.length > 0 ? sortArticlesChronologically(prev) : []));
+    if (shouldShowSpinner) {
+      setIsLoading(false);
     }
-
-    setIsLoading(false);
   };
 
   const handleArticleViewsUpdated = (articleId: string, updatedViews: number) => {
@@ -1053,25 +1075,71 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
   useEffect(() => {
     const serverData = getServerInitialPublicData();
     const clientDeleted = getClientDeletedIds();
+    const hasServerHydratedBundle = Boolean(
+      serverData && Array.isArray(serverData.articles)
+    );
+    const hasStaffSession = Boolean(getAuthToken());
 
     if (Array.isArray(serverData?.articles)) {
-      const cleanServerArticles = serverData.articles.filter((a) => a && a.id && !clientDeleted.has(String(a.id).trim()));
+      const cleanServerArticles = serverData.articles.filter(
+        (a) => a && a.id && !clientDeleted.has(String(a.id).trim())
+      );
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(sortArticlesChronologically(cleanServerArticles)));
+        localStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify(sortArticlesChronologically(cleanServerArticles))
+        );
       } catch {}
     }
 
-    fetchArticlesFromDb();
-    fetchSocialLinksFromDb();
-    fetchPagesFromDb();
-    fetchTaxonomiesFromDb();
-    fetchNavCategoriesFromDb();
+    const syncAllData = () => {
+      fetchArticlesFromDb({ silent: articlesCountRef.current > 0 });
+      fetchSocialLinksFromDb();
+      fetchPagesFromDb();
+      fetchTaxonomiesFromDb();
+      fetchNavCategoriesFromDb();
+    };
+
+    // Якщо публічна сторінка вже отримала свіжий серверний пакет (SSR),
+    // виконуємо фонову перевірку після завершення первинного рендеру та завантаження зображень,
+    // щоб не навантажувати мережу й не викликати зайві перемальовування під час завантаження.
+    if (hasServerHydratedBundle && !hasStaffSession) {
+      let cancelled = false;
+      let timerId: ReturnType<typeof setTimeout> | null = null;
+      let idleId: number | null = null;
+
+      const scheduleRun = () => {
+        if (cancelled) return;
+        syncAllData();
+      };
+
+      if (typeof (window as any).requestIdleCallback === 'function') {
+        idleId = (window as any).requestIdleCallback(scheduleRun, { timeout: 1500 });
+      } else {
+        timerId = setTimeout(scheduleRun, 800);
+      }
+
+      return () => {
+        cancelled = true;
+        if (idleId !== null && typeof (window as any).cancelIdleCallback === 'function') {
+          (window as any).cancelIdleCallback(idleId);
+        }
+        if (timerId !== null) {
+          clearTimeout(timerId);
+        }
+      };
+    }
+
+    syncAllData();
   }, []);
 
-  // Після входу редактора або адміністратора підвантажуємо повний актуальний перелік даних із бази даних
+  // Після входу редактора або адміністратора (перехід false -> true) підвантажуємо повний актуальний перелік даних
+  const prevAdminAuthRef = useRef<boolean>(isAdminAuthenticated);
   useEffect(() => {
-    if (isAdminAuthenticated) {
-      fetchArticlesFromDb();
+    const wasAuthenticated = prevAdminAuthRef.current;
+    prevAdminAuthRef.current = isAdminAuthenticated;
+    if (!wasAuthenticated && isAdminAuthenticated) {
+      fetchArticlesFromDb({ silent: articlesCountRef.current > 0 });
       fetchSocialLinksFromDb();
       fetchNavCategoriesFromDb();
       fetchTaxonomiesFromDb();
@@ -2180,6 +2248,7 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
                                   article={article}
                                   siteLang={siteLang}
                                   aspectRatio="16/9"
+                                  eagerLoad
                                   onSelect={(id) => handleSelectArticle(id)}
                                 />
                               ))}
@@ -2462,6 +2531,7 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
                                   article={article}
                                   siteLang={siteLang}
                                   aspectRatio="16/9"
+                                  eagerLoad
                                   onSelect={(id) => handleSelectArticle(id)}
                                 />
                               ))}
@@ -2600,7 +2670,7 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
             <div className="w-[92%] sm:w-[90%] md:w-[calc(26/34*100%)] mx-auto pt-2 sm:pt-3.5 pb-10 sm:pb-14">
               {isLoading ? (
                 <div className="py-24 text-center">
-                  <div className="inline-block w-5 h-5 border-2 border-neutral-300 border-t-black rounded-full animate-spin" />
+                  <div className="inline-block w-5 h-5 border-2 border-neutral-300 dark:border-neutral-700 border-t-black dark:border-t-white rounded-full animate-spin" />
                 </div>
               ) : basePublishedArticles.length === 0 ? (
                 <div className="py-24 text-center max-w-md mx-auto">
@@ -2685,6 +2755,7 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
                                 article={article}
                                 siteLang={siteLang}
                                 aspectRatio="16/9"
+                                eagerLoad
                                 onSelect={(id) => handleSelectArticle(id)}
                               />
                             ))}
