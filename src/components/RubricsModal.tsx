@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, ChevronDown } from 'lucide-react';
+import { X } from 'lucide-react';
 import { SiteLanguage, SiteTheme, NavigationCategory } from '../types';
 import { ThemeToggle } from './ThemeToggle';
 import { DEFAULT_NAV_CATEGORIES } from '../utils/categories';
@@ -34,7 +34,7 @@ export const RubricsModal: React.FC<RubricsModalProps> = ({
   const [rendered, setRendered] = useState(isOpen);
   const [isAnimateIn, setIsAnimateIn] = useState(false);
 
-  // Категорії розгорнуті за замовчуванням або якщо обрана якась категорія
+  // Активна категорія зі списку (для візуального підсвічування)
   const isAnyCategoryActive = Boolean(
     activeSection &&
     activeSection !== 'news' &&
@@ -42,15 +42,13 @@ export const RubricsModal: React.FC<RubricsModalProps> = ({
     navCategories.some((c) => c.slug === activeSection || c.id === activeSection)
   );
 
-  const [isCategoriesExpanded, setIsCategoriesExpanded] = useState<boolean>(true);
+  // За замовчуванням список категорій у мобільному меню згорнутий
+  const [isCategoriesExpanded, setIsCategoriesExpanded] = useState<boolean>(false);
 
   // Плавне монтування, анімація появи та блокування прокрутки фонової сторінки
   useEffect(() => {
     if (isOpen) {
       setRendered(true);
-      if (isAnyCategoryActive) {
-        setIsCategoriesExpanded(true);
-      }
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
       const timer = requestAnimationFrame(() => {
@@ -67,10 +65,11 @@ export const RubricsModal: React.FC<RubricsModalProps> = ({
       document.body.style.overflow = '';
       const timer = setTimeout(() => {
         setRendered(false);
+        setIsCategoriesExpanded(false);
       }, 300);
       return () => clearTimeout(timer);
     }
-  }, [isOpen, isAnyCategoryActive]);
+  }, [isOpen]);
 
   // Закриття вікна по клавіші Escape
   useEffect(() => {
@@ -186,21 +185,25 @@ export const RubricsModal: React.FC<RubricsModalProps> = ({
             <button
               type="button"
               onClick={() => setIsCategoriesExpanded((prev) => !prev)}
-              className={`group flex items-center justify-center gap-2.5 text-2xl sm:text-3xl md:text-4xl transition-all duration-200 cursor-pointer focus:outline-none py-1.5 px-4 select-none text-center ${
+              aria-expanded={isCategoriesExpanded}
+              className={`group relative mx-auto flex items-center justify-center text-2xl sm:text-3xl md:text-4xl transition-all duration-200 cursor-pointer focus:outline-none py-1.5 px-4 select-none text-center ${
                 isAnyCategoryActive
                   ? 'text-black dark:text-[#ffffff] font-bold scale-105'
-                  : 'text-neutral-800 dark:text-[#cbcbcb] hover:text-black dark:hover:text-[#ffffff] font-semibold'
+                  : 'text-black dark:text-[#ffffff] hover:opacity-80 font-semibold'
               }`}
               style={{ fontFamily: "'Playfair Display', Georgia, serif" }}
             >
-              <span className="relative z-10 inline-block">
+              <span className="relative z-10 inline-block pb-1 transition-transform duration-200 group-hover:scale-105">
                 {siteLang === 'en' ? 'Categories' : 'Категорії'}
+                <span
+                  aria-hidden="true"
+                  className={`absolute bottom-0 left-0 right-0 rounded-full transition-all duration-300 ${
+                    isAnyCategoryActive || isCategoriesExpanded
+                      ? 'h-[2.5px] bg-black dark:bg-[#ffffff]'
+                      : 'h-[2px] bg-black/85 dark:bg-[#ffffff]/85 group-hover:bg-black dark:group-hover:bg-[#ffffff]'
+                  }`}
+                />
               </span>
-              <ChevronDown
-                className={`w-6 h-6 transition-transform duration-300 stroke-[2.2] text-neutral-400 dark:text-neutral-500 group-hover:text-black dark:group-hover:text-white ${
-                  isCategoriesExpanded ? 'rotate-180' : ''
-                }`}
-              />
             </button>
 
             {/* Випадаючий список категорій для мобільних */}
