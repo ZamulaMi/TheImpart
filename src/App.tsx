@@ -336,9 +336,9 @@ export function ArticleCard({
           onSelect(article.id);
         }
       }}
-      className={`animate-card-fade-in block group relative cursor-pointer overflow-hidden rounded-xl bg-neutral-900 border border-transparent dark:border-[#333333]/80 shadow-md hover:shadow-xl transition-shadow duration-300 flex flex-col justify-end no-underline text-inherit ${aspectClass}`}
+      className={`animate-card-fade-in block group relative cursor-pointer overflow-hidden rounded-xl bg-neutral-900 border border-transparent dark:border-[#333333]/80 shadow-md hover:shadow-xl transition-shadow duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] flex flex-col justify-end no-underline text-inherit ${aspectClass}`}
     >
-      {/* Фонове фото з плавною появою після декодування */}
+      {/* Фонове фото з плавною появою після декодування та м'яким наближенням при наведенні */}
       {article.coverImage ? (
         <img
           ref={imgRef}
@@ -351,8 +351,8 @@ export function ArticleCard({
           decoding="async"
           onLoad={() => setIsImgLoaded(true)}
           onError={() => setIsImgLoaded(true)}
-          className={`absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-[opacity,transform] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-            isImgLoaded ? 'opacity-100' : 'opacity-0 scale-[1.015]'
+          className={`absolute inset-0 w-full h-full object-cover article-card-cover-img ${
+            isImgLoaded ? 'opacity-100' : 'is-loading'
           }`}
         />
       ) : (
@@ -362,7 +362,8 @@ export function ArticleCard({
       )}
 
       {/* Темні градієнтні накладки для читабельності тексту */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-black/15 group-hover:from-black/90 group-hover:via-black/50 transition-all duration-300" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-black/15 pointer-events-none" />
+      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/15 transition-colors duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] pointer-events-none" />
 
       {/* Контент поверх фото */}
       <div
@@ -389,16 +390,16 @@ export function ArticleCard({
 
         {/* Назва статті (шрифт як у рубрик header) */}
         <h3
-          className={`font-sans font-semibold text-white leading-snug drop-shadow-sm group-hover:text-white/95 transition-colors ${titleClass}`}
+          className={`font-sans font-semibold text-white leading-snug drop-shadow-sm group-hover:text-white/95 transition-colors duration-300 ${titleClass}`}
         >
           {title}
         </h3>
 
         {/* Короткий опис: плавно з'являється при наведенні курсору */}
         {excerpt && (
-          <div className="grid grid-rows-[0fr] group-hover:grid-rows-[1fr] transition-all duration-300 ease-out">
+          <div className="grid grid-rows-[0fr] group-hover:grid-rows-[1fr] transition-[grid-template-rows] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]">
             <div className="overflow-hidden">
-              <p className="text-xs sm:text-sm text-neutral-200 leading-relaxed font-sans pt-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-75 line-clamp-3">
+              <p className="text-xs sm:text-sm text-neutral-200 leading-relaxed font-sans pt-3 opacity-0 group-hover:opacity-100 transition-opacity duration-500 delay-75 ease-[cubic-bezier(0.22,1,0.36,1)] line-clamp-3">
                 {excerpt}
               </p>
             </div>

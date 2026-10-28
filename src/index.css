@@ -66,10 +66,34 @@ html.dark body {
   animation: smoothArticleSectionReveal 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* Плавне масштабування фото заставки статей при наведенні курсору */
+.article-card-cover-img {
+  transform: scale(1) translateZ(0);
+  transform-origin: center center;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  will-change: transform, opacity;
+  transition:
+    transform 0.85s cubic-bezier(0.22, 1, 0.36, 1),
+    scale 0.85s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.group:hover .article-card-cover-img,
+.group:focus-visible .article-card-cover-img {
+  transform: scale(1.055) translateZ(0);
+}
+
+.article-card-cover-img.is-loading {
+  opacity: 0;
+  transform: scale(1.015) translateZ(0);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-article-fade-in,
   .animate-card-fade-in,
-  .animate-page-fade-in {
+  .animate-page-fade-in,
+  .article-card-cover-img {
     animation: none !important;
     transition: none !important;
     opacity: 1 !important;
