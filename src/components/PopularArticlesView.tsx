@@ -17,6 +17,7 @@ import { Article, SiteLanguage, TaxonomiesData } from '../types';
 import { ArticleCard } from '../App';
 import { fetchStatsSummary } from '../services/stats';
 import { formatViews } from '../utils/stats';
+import { getArticleCreationTimestamp } from '../utils/date';
 
 export type PopularPeriod = 'all' | 'day' | 'week' | 'month' | 'year';
 
@@ -132,10 +133,14 @@ export const PopularArticlesView: React.FC<PopularArticlesViewProps> = ({
 
   // Отримання точної кількості переглядів статті за вибраний період
   const getArticleViews = (art: Article): number => {
+    if (period === 'all') {
+      const fromSummary = typeof periodStats[art.id] === 'number' ? periodStats[art.id] : 0;
+      return Math.max(art.views ?? 0, fromSummary);
+    }
     if (typeof periodStats[art.id] === 'number') {
       return periodStats[art.id];
     }
-    return art.views ?? 0;
+    return 0;
   };
 
   // Фільтрація статей
@@ -202,10 +207,11 @@ export const PopularArticlesView: React.FC<PopularArticlesViewProps> = ({
         return viewsB - viewsA; // Більше переглядів зверху!
       }
 
-      // Якщо переглядів однаково — за датою публікації (новіші зверху)
-      const timeA = new Date(a.createdAt || a.date || 0).getTime();
-      const timeB = new Date(b.createdAt || b.date || 0).getTime();
-      return timeB - timeA;
+      // Якщо переглядів однаково — строго за первинною датою створення (ідентично до SSR)
+      const timeA = getArticleCreationTimestamp(a);
+      const timeB = getArticleCreationTimestamp(b);
+      if (timeB !== timeA) return timeB - timeA;
+      return String(b.id).localeCompare(String(a.id));
     });
     return list;
   }, [filteredArticles, period, periodStats]);

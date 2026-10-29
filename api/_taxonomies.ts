@@ -82,10 +82,16 @@ async function initTaxonomiesDb() {
 
 export async function getTaxonomies(): Promise<TaxonomiesData> {
   try {
-    await initTaxonomiesDb();
-    const rows = await safeExecuteSql(async (sql) => {
+    let rows = await safeExecuteSql(async (sql) => {
       return await sql`SELECT value FROM site_settings WHERE key = 'taxonomies' LIMIT 1;`;
-    }, 8000);
+    }, 9000);
+
+    if (!rows) {
+      await initTaxonomiesDb();
+      rows = await safeExecuteSql(async (sql) => {
+        return await sql`SELECT value FROM site_settings WHERE key = 'taxonomies' LIMIT 1;`;
+      }, 9000);
+    }
 
     if (rows && rows.length > 0 && rows[0]?.value) {
       try {

@@ -13,6 +13,7 @@ import {
 } from '../src/utils/seo.ts';
 import { invalidateSitemapCache } from './_sitemap_cache.ts';
 import { triggerSitemapAutoUpdate } from './_sitemap_sync.ts';
+import { sortArticlesChronologically } from '../src/utils/date.ts';
 
 export { getNeonSql, cleanConnectionString };
 
@@ -116,6 +117,8 @@ export function unrecordDeletedArticleId(id: string): void {
 function readArticlesFromFile(): Article[] | null {
   const deletedIds = readDeletedArticleIds();
   const paths = [ARTICLES_TMP_FILE, ARTICLES_FILE];
+  let emptyFallback: Article[] | null = null;
+
   for (const p of paths) {
     try {
       if (fs.existsSync(p)) {
@@ -123,7 +126,13 @@ function readArticlesFromFile(): Article[] | null {
         if (content && content.trim()) {
           const parsed = JSON.parse(content);
           if (Array.isArray(parsed)) {
-            return parsed.filter((a) => a && a.id && !deletedIds.has(String(a.id).trim()));
+            const filtered = parsed.filter((a) => a && a.id && !deletedIds.has(String(a.id).trim()));
+            if (filtered.length > 0) {
+              return filtered;
+            }
+            if (emptyFallback === null) {
+              emptyFallback = filtered;
+            }
           }
         }
       }
@@ -132,7 +141,7 @@ function readArticlesFromFile(): Article[] | null {
     }
   }
 
-  return null;
+  return emptyFallback;
 }
 
 function writeArticlesToFile(articles: Article[]): void {
@@ -232,32 +241,16 @@ export async function initDb() {
   }
 }
 
-export async function getArticles(): Promise<Article[]> {
-  try {
-    await initDb();
-    await ensureStatsLoaded();
+async function queryArticlesAndDeletedFromDb(): Promise<{
+  rows: any[];
+  deletedSettingRows: any[] | null;
+} | null> {
+  const sql = getNeonSql();
+  if (!sql) return null;
 
-    // Завантажуємо список видалених статей із site_settings Neon
-    try {
-      const deletedSettingRows = await safeExecuteSql(async (sql) => {
-        return await sql`SELECT value FROM site_settings WHERE key = 'deleted_articles' LIMIT 1;`;
-      }, 2000);
-      if (deletedSettingRows && deletedSettingRows.length > 0 && deletedSettingRows[0]?.value) {
-        const parsed = typeof deletedSettingRows[0].value === 'string'
-          ? JSON.parse(deletedSettingRows[0].value)
-          : deletedSettingRows[0].value;
-        if (Array.isArray(parsed)) {
-          for (const dId of parsed) {
-            recordDeletedArticleId(String(dId).trim());
-          }
-        }
-      }
-    } catch {}
-
-    const deletedIds = readDeletedArticleIds();
-
-    const rows = await safeExecuteSql(async (sql) => {
-      return await sql`
+  const runSelect = async (client: any) => {
+    const [rows, deletedSettingRows] = await Promise.all([
+      client`
         SELECT 
           a.id, 
           a.title, 
@@ -292,8 +285,66 @@ export async function getArticles(): Promise<Article[]> {
           GROUP BY article_id
         ) s ON a.id = s.article_id
         ORDER BY a.created_at DESC;
-      `;
-    }, 4000);
+      `,
+      client`SELECT value FROM site_settings WHERE key = 'deleted_articles' LIMIT 1;`.catch(() => null),
+    ]);
+    return { rows, deletedSettingRows };
+  };
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    try {
+      const activeClient = attempt === 0 ? sql : (getNeonSql() || sql);
+      return await Promise.race([
+        runSelect(activeClient),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error('Articles SQL select timeout')), 9000);
+        }),
+      ]);
+    } catch (err: any) {
+      const msg = String(err?.message || err || '');
+      const code = String(err?.code || '');
+      if (
+        code === '42P01' ||
+        code === '42703' ||
+        /relation .* does not exist/i.test(msg) ||
+        /column .* does not exist/i.test(msg)
+      ) {
+        await initDb();
+      } else {
+        console.warn(`getArticles SQL read attempt ${attempt + 1} notice:`, msg);
+      }
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
+  return null;
+}
+
+export async function getArticles(): Promise<Article[]> {
+  try {
+    const [dbResult] = await Promise.all([
+      queryArticlesAndDeletedFromDb(),
+      ensureStatsLoaded().catch(() => {}),
+    ]);
+
+    if (dbResult?.deletedSettingRows && dbResult.deletedSettingRows.length > 0 && dbResult.deletedSettingRows[0]?.value) {
+      try {
+        const parsed =
+          typeof dbResult.deletedSettingRows[0].value === 'string'
+            ? JSON.parse(dbResult.deletedSettingRows[0].value)
+            : dbResult.deletedSettingRows[0].value;
+        if (Array.isArray(parsed)) {
+          for (const dId of parsed) {
+            recordDeletedArticleId(String(dId).trim());
+          }
+        }
+      } catch {}
+    }
+
+    const deletedIds = readDeletedArticleIds();
+    const rows = dbResult?.rows ?? null;
 
     if (rows && rows.length > 0) {
       const mapped = rows
@@ -355,14 +406,10 @@ export async function getArticles(): Promise<Article[]> {
         }
       }
 
-      // Сортуємо строго хронологічно за датою первинного створення
-      inMemoryArticles.sort((a, b) => {
-        const timeA = new Date(a.createdAt || a.date || 0).getTime();
-        const timeB = new Date(b.createdAt || b.date || 0).getTime();
-        return timeB - timeA;
-      });
-
-      inMemoryArticles = inMemoryArticles.filter((a) => !deletedIds.has(String(a.id).trim()));
+      // Сортуємо строго хронологічно за первинною датою створення (ідентично до клієнта)
+      inMemoryArticles = sortArticlesChronologically(
+        inMemoryArticles.filter((a) => !deletedIds.has(String(a.id).trim()))
+      );
       writeArticlesToFile(inMemoryArticles);
       return inMemoryArticles.map((a) => {
         const statsViews = getTotalViews(a.id);
@@ -373,7 +420,10 @@ export async function getArticles(): Promise<Article[]> {
         };
       });
     } else if (rows && rows.length === 0) {
-      const localArticles = (readArticlesFromFile() || []).filter((a) => !deletedIds.has(String(a.id).trim()));
+      await initDb();
+      const localArticles = sortArticlesChronologically(
+        (readArticlesFromFile() || []).filter((a) => !deletedIds.has(String(a.id).trim()))
+      );
       inMemoryArticles = localArticles;
       if (inMemoryArticles.length > 0) {
         for (const a of inMemoryArticles) {
@@ -410,7 +460,7 @@ export async function getArticles(): Promise<Article[]> {
       writeArticlesToFile(inMemoryArticles);
       return inMemoryArticles.map((a) => ({
         ...a,
-        views: getTotalViews(a.id),
+        views: Math.max(a.views || 0, getTotalViews(a.id)),
       }));
     }
   } catch (error) {
@@ -420,14 +470,18 @@ export async function getArticles(): Promise<Article[]> {
   const deletedIds = readDeletedArticleIds();
   const fromFile = readArticlesFromFile();
   if (fromFile !== null) {
-    inMemoryArticles = fromFile.filter((a) => !deletedIds.has(String(a.id).trim()));
+    inMemoryArticles = sortArticlesChronologically(
+      fromFile.filter((a) => !deletedIds.has(String(a.id).trim()))
+    );
   } else {
-    inMemoryArticles = inMemoryArticles.filter((a) => !deletedIds.has(String(a.id).trim()));
+    inMemoryArticles = sortArticlesChronologically(
+      inMemoryArticles.filter((a) => !deletedIds.has(String(a.id).trim()))
+    );
   }
 
   return inMemoryArticles.map((a) => ({
     ...a,
-    views: getTotalViews(a.id),
+    views: Math.max(a.views || 0, getTotalViews(a.id)),
   }));
 }
 
@@ -811,7 +865,7 @@ export default async function handler(req: any, res: any) {
         return res.status(200).json(articles);
       }
 
-      res.setHeader('Cache-Control', 'no-cache, must-revalidate, max-age=0');
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
       res.setHeader('Pragma', 'no-cache');
       const publicArticles = articles
         .map(sanitizePublicArticle)

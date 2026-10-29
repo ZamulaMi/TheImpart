@@ -109,10 +109,16 @@ async function initCategoriesDb() {
 
 export async function getNavCategories(): Promise<NavigationCategory[]> {
   try {
-    await initCategoriesDb();
-    const rows = await safeExecuteSql(async (sql) => {
+    let rows = await safeExecuteSql(async (sql) => {
       return await sql`SELECT value FROM site_settings WHERE key = 'nav_categories' LIMIT 1;`;
-    }, 8000);
+    }, 9000);
+
+    if (!rows) {
+      await initCategoriesDb();
+      rows = await safeExecuteSql(async (sql) => {
+        return await sql`SELECT value FROM site_settings WHERE key = 'nav_categories' LIMIT 1;`;
+      }, 9000);
+    }
 
     if (rows && rows.length > 0 && rows[0]?.value !== undefined && rows[0]?.value !== null) {
       try {

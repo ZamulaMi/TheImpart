@@ -221,7 +221,38 @@ export async function fetchSitemapSourceData(): Promise<SitemapSourceData> {
   const categoriesPaths = ['/tmp/impart_categories.json', path.join(dataDir, 'categories.json')];
   const pagesPaths = ['/tmp/impart_pages.json', path.join(dataDir, 'pages.json')];
 
-  const articles = await fetchArticlesStrict();
+  const fetchSettingsPromise = (async () => {
+    if (!hasConfiguredDatabaseEnv()) return null;
+    const sql = getNeonSql();
+    if (!sql) return null;
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const activeSql = attempt === 0 ? sql : (getNeonSql() || sql);
+        return await executeStrictSql<any[]>(
+          activeSql,
+          async (client) => {
+            return await client`
+              SELECT key, value, updated_at AS "updatedAt"
+              FROM site_settings
+              WHERE key IN ('nav_categories', 'static_pages');
+            `;
+          },
+          9000
+        );
+      } catch (err: any) {
+        if (attempt === 1) {
+          console.warn('Neon query notice in sitemap, falling back to local files:', err?.message || err);
+        }
+      }
+    }
+    return null;
+  })();
+
+  const [articles, settingRows] = await Promise.all([
+    fetchArticlesStrict(),
+    fetchSettingsPromise,
+  ]);
 
   let categories: NavigationCategory[] = [...DEFAULT_NAV_CATEGORIES];
   let pagesUpdatedAt: { about?: string; contacts?: string } = {};
@@ -230,48 +261,41 @@ export async function fetchSitemapSourceData(): Promise<SitemapSourceData> {
     contacts: { ...DEFAULT_PAGES_DATA.contacts },
   };
 
-  if (hasConfiguredDatabaseEnv()) {
+  if (settingRows) {
     try {
-      const sql = getNeonSql();
-      if (sql) {
-        const settingRows = await executeStrictSql<any[]>(sql, async (client) => {
-          return await client`
-            SELECT key, value, updated_at AS "updatedAt"
-            FROM site_settings
-            WHERE key IN ('nav_categories', 'static_pages');
-          `;
-        }, 8000);
-
-        for (const row of settingRows || []) {
-          if (row.key === 'nav_categories' && row.value) {
-            const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
-            if (Array.isArray(parsed)) {
-              categories = parsed;
-            }
-          } else if (row.key === 'static_pages' && row.value) {
-            const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
-            if (parsed && typeof parsed === 'object') {
-              staticPages = {
-                about: { ...DEFAULT_PAGES_DATA.about, ...(parsed.about || {}) },
-                contacts: { ...DEFAULT_PAGES_DATA.contacts, ...(parsed.contacts || {}) },
-              };
-            }
-            pagesUpdatedAt = {
-              about: toValidIso8601(parsed?.about?.updatedAt || (row.updatedAt ? new Date(row.updatedAt).toISOString() : undefined)),
-              contacts: toValidIso8601(parsed?.contacts?.updatedAt || (row.updatedAt ? new Date(row.updatedAt).toISOString() : undefined)),
+      for (const row of settingRows) {
+        if (row.key === 'nav_categories' && row.value) {
+          const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+          if (Array.isArray(parsed)) {
+            categories = parsed;
+          }
+        } else if (row.key === 'static_pages' && row.value) {
+          const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+          if (parsed && typeof parsed === 'object') {
+            staticPages = {
+              about: { ...DEFAULT_PAGES_DATA.about, ...(parsed.about || {}) },
+              contacts: { ...DEFAULT_PAGES_DATA.contacts, ...(parsed.contacts || {}) },
             };
           }
+          pagesUpdatedAt = {
+            about: toValidIso8601(
+              parsed?.about?.updatedAt || (row.updatedAt ? new Date(row.updatedAt).toISOString() : undefined)
+            ),
+            contacts: toValidIso8601(
+              parsed?.contacts?.updatedAt || (row.updatedAt ? new Date(row.updatedAt).toISOString() : undefined)
+            ),
+          };
         }
-
-        return {
-          articles,
-          categories,
-          pagesUpdatedAt,
-          staticPages,
-        };
       }
+
+      return {
+        articles,
+        categories,
+        pagesUpdatedAt,
+        staticPages,
+      };
     } catch (err: any) {
-      console.warn('Neon query notice in sitemap, falling back to local files:', err?.message || err);
+      console.warn('Neon parse notice in sitemap, falling back to local files:', err?.message || err);
     }
   }
 

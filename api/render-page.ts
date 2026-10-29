@@ -26,7 +26,7 @@ import type {
 } from '../src/types.ts';
 import { DEFAULT_PAGES_DATA, DEFAULT_SOCIAL_LINKS } from '../src/types.ts';
 import { DEFAULT_NAV_CATEGORIES, matchesNavCategory } from '../src/utils/categories.ts';
-import { sortArticlesChronologically } from '../src/utils/date.ts';
+import { formatTimeAgoOrDate, sortArticlesChronologically } from '../src/utils/date.ts';
 import {
   SITE_NAME,
   SITE_DOMAIN,
@@ -54,6 +54,7 @@ export interface PublicRenderBundle {
   staticPages: SitePagesData;
   socialLinks: SiteSocialLinks;
   taxonomies: TaxonomiesData;
+  generatedAt?: number;
 }
 
 export interface RenderedPageResult {
@@ -90,6 +91,7 @@ export function getBaseHtmlTemplate(): string {
   const candidatePaths = isProd
     ? [
         path.join(process.cwd(), 'dist', '_shell.html'),
+        path.resolve('dist/_shell.html'),
         path.join(process.cwd(), 'dist', 'index.html'),
         path.resolve('dist/index.html'),
         path.join(process.cwd(), 'index.html'),
@@ -98,8 +100,8 @@ export function getBaseHtmlTemplate(): string {
     : [
         path.join(process.cwd(), 'index.html'),
         path.resolve('index.html'),
-        path.join(process.cwd(), 'dist', 'index.html'),
-        path.resolve('dist/index.html'),
+        path.join(process.cwd(), 'dist', '_shell.html'),
+        path.resolve('dist/_shell.html'),
       ];
 
   for (const p of candidatePaths) {
@@ -467,7 +469,7 @@ async function fetchFreshPublicRenderBundle(): Promise<PublicRenderBundle> {
             if (!sanitized) return null;
             return {
               ...sanitized,
-              views: getTotalViews(sanitized.id),
+              views: Math.max(sanitized.views ?? 0, getTotalViews(sanitized.id)),
             } as Article;
           })
           .filter((item): item is Article => item !== null)
@@ -485,6 +487,7 @@ async function fetchFreshPublicRenderBundle(): Promise<PublicRenderBundle> {
         staticPages,
         socialLinks,
         taxonomies,
+        generatedAt: Date.now(),
       };
 
       setCachedPublicRenderData(bundle, versionBefore);
@@ -498,14 +501,8 @@ async function fetchFreshPublicRenderBundle(): Promise<PublicRenderBundle> {
 }
 
 export async function loadPublicRenderBundle(): Promise<PublicRenderBundle> {
-  const cachedEntry = getCachedPublicRenderDataWithStale<PublicRenderBundle>();
-  if (cachedEntry) {
-    if (cachedEntry.isStale) {
-      fetchFreshPublicRenderBundle().catch(() => {});
-    }
-    return cachedEntry.data;
-  }
-
+  // Завжди читаємо актуальний стан БД напряму (з дедуплікацією паралельних запитів через bundleRefreshPromise),
+  // щоб на жодній сторінці не з'являлися вчорашні/кешовані матеріали перед свіжими.
   return fetchFreshPublicRenderBundle();
 }
 
@@ -689,8 +686,10 @@ function renderServerArticleCardHtml(
       <div class="flex items-center flex-wrap gap-2 text-[11px] sm:text-xs uppercase tracking-wider text-white/80 mb-2">
         ${category ? `<span class="font-medium text-white/95">${escapeHtml(category)}</span>` : ''}
         ${
-          publishedIso
-            ? `${category ? '<span class="text-white/40">•</span>' : ''}<time datetime="${escapeHtml(publishedIso)}" class="text-white/80">${escapeHtml(art.date || publishedIso)}</time>`
+          publishedIso || art.date
+            ? `${category ? '<span class="text-white/40">•</span>' : ''}<time${publishedIso ? ` datetime="${escapeHtml(publishedIso)}"` : ''} class="text-white/80">${escapeHtml(
+                formatTimeAgoOrDate(art.createdAt, art.date, art.id, isEn ? 'en' : 'ua') || art.date || publishedIso || ''
+              )}</time>`
             : ''
         }
       </div>
@@ -1086,7 +1085,7 @@ export async function generatePageResponse(
       status: 200,
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
-        'Cache-Control': 'no-cache, must-revalidate, max-age=0',
+        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
       },
       html,
     };
@@ -1245,7 +1244,7 @@ export async function generatePageResponse(
       status: 200,
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
-        'Cache-Control': 'no-cache, must-revalidate, max-age=0',
+        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
       },
       html,
     };
@@ -1326,7 +1325,7 @@ export async function generatePageResponse(
       status: 200,
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
-        'Cache-Control': 'no-cache, must-revalidate, max-age=0',
+        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
       },
       html,
     };
@@ -1385,7 +1384,7 @@ export async function generatePageResponse(
       status: 200,
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
-        'Cache-Control': 'no-cache, must-revalidate, max-age=0',
+        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
       },
       html,
     };
@@ -1532,7 +1531,7 @@ export async function generatePageResponse(
         status: 200,
         headers: {
           'Content-Type': 'text/html; charset=utf-8',
-          'Cache-Control': 'no-cache, must-revalidate, max-age=0',
+          'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
         },
         html,
       };

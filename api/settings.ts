@@ -145,12 +145,18 @@ async function initSettingsDb() {
 }
 
 export async function getSocialLinks(): Promise<SiteSocialLinks> {
-  // 1. Спроба завантажити з PostgreSQL з достатнім тайм-аутом для холодного старту Neon
+  // 1. Спроба завантажити з PostgreSQL напряму з повтором для холодного старту Neon
   try {
-    await initSettingsDb();
-    const rows = await safeExecuteSql(async (sql) => {
+    let rows = await safeExecuteSql(async (sql) => {
       return await sql`SELECT value FROM site_settings WHERE key = 'social_links' LIMIT 1;`;
-    }, 8000);
+    }, 9000);
+
+    if (!rows) {
+      await initSettingsDb();
+      rows = await safeExecuteSql(async (sql) => {
+        return await sql`SELECT value FROM site_settings WHERE key = 'social_links' LIMIT 1;`;
+      }, 9000);
+    }
 
     if (rows && rows.length > 0 && rows[0].value) {
       const parsed = typeof rows[0].value === 'string' ? JSON.parse(rows[0].value) : rows[0].value;

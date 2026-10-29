@@ -86,7 +86,10 @@ interface ServerInitialPublicData {
   staticPages?: SitePagesData;
   socialLinks?: SiteSocialLinks;
   taxonomies?: TaxonomiesData;
+  generatedAt?: number;
 }
+
+const MAX_FRESH_SSR_BUNDLE_AGE_MS = 60_000;
 
 function getServerInitialPublicData(): ServerInitialPublicData | null {
   if (typeof window === 'undefined') return null;
@@ -97,12 +100,23 @@ function getServerInitialPublicData(): ServerInitialPublicData | null {
   return null;
 }
 
+function getFreshServerInitialPublicData(): ServerInitialPublicData | null {
+  const data = getServerInitialPublicData();
+  if (!data) return null;
+  if (typeof data.generatedAt === 'number' && Date.now() - data.generatedAt > MAX_FRESH_SSR_BUNDLE_AGE_MS) {
+    return null;
+  }
+  return data;
+}
+
 function syncServerInitialPublicData(patch: Partial<ServerInitialPublicData>): void {
   if (typeof window === 'undefined') return;
   try {
     const existing = (window as any).__INITIAL_PUBLIC_DATA__;
     if (existing && typeof existing === 'object') {
-      (window as any).__INITIAL_PUBLIC_DATA__ = { ...existing, ...patch };
+      (window as any).__INITIAL_PUBLIC_DATA__ = { ...existing, ...patch, generatedAt: Date.now() };
+    } else {
+      (window as any).__INITIAL_PUBLIC_DATA__ = { ...patch, generatedAt: Date.now() };
     }
   } catch {}
 }
@@ -657,17 +671,9 @@ export default function App() {
   };
 
   const [socialLinks, setSocialLinks] = useState<SiteSocialLinks>(() => {
-    const serverData = getServerInitialPublicData();
+    const serverData = getFreshServerInitialPublicData();
     if (serverData?.socialLinks && typeof serverData.socialLinks === 'object') {
       return serverData.socialLinks;
-    }
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem(SOCIAL_STORAGE_KEY);
-        if (saved) return JSON.parse(saved);
-      } catch (e) {
-        console.error(e);
-      }
     }
     return DEFAULT_SOCIAL_LINKS;
   });
@@ -704,34 +710,23 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
 });
 
   const [staticPages, setStaticPages] = useState<SitePagesData>(() => {
-    const serverData = getServerInitialPublicData();
+    const serverData = getFreshServerInitialPublicData();
     if (serverData?.staticPages && (serverData.staticPages.about || serverData.staticPages.contacts)) {
       return sanitizeStaticPages({
         about: { ...DEFAULT_PAGES_DATA.about, ...(serverData.staticPages.about || {}) },
         contacts: { ...DEFAULT_PAGES_DATA.contacts, ...(serverData.staticPages.contacts || {}) },
       });
     }
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem(PAGES_STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (parsed && typeof parsed === 'object' && (parsed.about || parsed.contacts)) {
-            const combined = {
-              about: { ...DEFAULT_PAGES_DATA.about, ...(parsed.about || {}) },
-              contacts: { ...DEFAULT_PAGES_DATA.contacts, ...(parsed.contacts || {}) },
-            };
-            return sanitizeStaticPages(combined);
-          }
-        }
-      } catch (e) {
-        console.error(e);
-      }
-    }
     return DEFAULT_PAGES_DATA;
   });
 
+  const [isPagesLoading, setIsPagesLoading] = useState<boolean>(() => {
+    const serverData = getFreshServerInitialPublicData();
+    return !(serverData?.staticPages && (serverData.staticPages.about || serverData.staticPages.contacts));
+  });
+
   const fetchPagesFromDb = async () => {
+    let loaded = false;
     try {
       const data = await fetchPagesFromCloud(true);
       if (data && typeof data === 'object' && (data.about || data.contacts)) {
@@ -749,10 +744,29 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
         } catch (e) {
           console.error(e);
         }
+        loaded = true;
       }
     } catch (err) {
       console.warn('Pages fetch notice:', err);
     }
+
+    if (!loaded && typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem(PAGES_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && typeof parsed === 'object' && (parsed.about || parsed.contacts)) {
+            const combined = {
+              about: { ...DEFAULT_PAGES_DATA.about, ...(parsed.about || {}) },
+              contacts: { ...DEFAULT_PAGES_DATA.contacts, ...(parsed.contacts || {}) },
+            };
+            setStaticPages(sanitizeStaticPages(combined));
+          }
+        }
+      } catch {}
+    }
+
+    setIsPagesLoading(false);
   };
 
   const handleSaveStaticPages = async (newPages: SitePagesData) => {
@@ -773,7 +787,7 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
   const prevArticleIdRef = useRef<string | null>(selectedArticleId);
 
   const [taxonomies, setTaxonomies] = useState<TaxonomiesData>(() => {
-    const serverData = getServerInitialPublicData();
+    const serverData = getFreshServerInitialPublicData();
     if (serverData?.taxonomies && Array.isArray(serverData.taxonomies.categories) && Array.isArray(serverData.taxonomies.topics)) {
       return serverData.taxonomies;
     }
@@ -811,11 +825,11 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
   };
 
   const [navCategories, setNavCategories] = useState<NavigationCategory[]>(() => {
-    const serverData = getServerInitialPublicData();
+    const serverData = getFreshServerInitialPublicData();
     if (Array.isArray(serverData?.navCategories)) {
       return serverData.navCategories;
     }
-    return getStoredNavCategories();
+    return DEFAULT_NAV_CATEGORIES;
   });
   const [isDesktopCategoriesOpen, setIsDesktopCategoriesOpen] = useState<boolean>(false);
   const desktopCategoriesRef = useRef<HTMLDivElement>(null);
@@ -836,6 +850,7 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
   };
 
   const fetchNavCategoriesFromDb = async () => {
+    let loaded = false;
     try {
       const cloudData = await fetchNavCategoriesFromCloud(true);
       if (Array.isArray(cloudData)) {
@@ -844,9 +859,19 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
         );
         saveStoredNavCategories(cloudData);
         syncServerInitialPublicData({ navCategories: cloudData });
+        loaded = true;
       }
     } catch (err) {
       console.warn('Fetch categories notice:', err);
+    }
+
+    if (!loaded) {
+      const stored = getStoredNavCategories();
+      if (Array.isArray(stored) && stored.length > 0) {
+        setNavCategories((prev) =>
+          JSON.stringify(prev) === JSON.stringify(stored) ? prev : stored
+        );
+      }
     }
   };
 
@@ -867,40 +892,24 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
 
   const [articles, setArticles] = useState<Article[]>(() => {
     const clientDeleted = getClientDeletedIds();
-    const serverData = getServerInitialPublicData();
+    const serverData = getFreshServerInitialPublicData();
     if (Array.isArray(serverData?.articles)) {
       const filtered = serverData.articles.filter((a) => a && a.id && !clientDeleted.has(String(a.id).trim()));
       return sortArticlesChronologically(filtered);
     }
-    try {
-      const cached = localStorage.getItem(STORAGE_KEY);
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed)) {
-          const filtered = parsed.filter((a: any) => a && a.id && !clientDeleted.has(String(a.id).trim()));
-          return sortArticlesChronologically(filtered);
-        }
-      }
-    } catch {}
+    // Не підставляємо кеш localStorage синхронно до запиту на сервер,
+    // щоб читач ніколи не бачив учорашні статті перед сьогоднішніми.
     return [];
   });
   const articlesCountRef = useRef<number>(articles.length);
   articlesCountRef.current = articles.length;
 
   const [isLoading, setIsLoading] = useState<boolean>(() => {
-    if (articles.length > 0) return false;
-    if (typeof window !== 'undefined') {
-      const serverData = getServerInitialPublicData();
-      if (Array.isArray(serverData?.articles)) {
-        return false;
-      }
-      const parsed = parseRouteFromUrl();
-      if (parsed.articleId) {
-        const hasCache = localStorage.getItem(STORAGE_KEY);
-        return !hasCache;
-      }
+    const serverData = getFreshServerInitialPublicData();
+    if (Array.isArray(serverData?.articles)) {
+      return false;
     }
-    return false;
+    return true;
   });
 
   // Активний розділ у шапці: 'news' | 'articles' | 'reviews' | null (null = головна стрічка)
@@ -961,6 +970,7 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
   };
 
   const fetchSocialLinksFromDb = async () => {
+    let loaded = false;
     try {
       const cloudLinks = await fetchSocialLinksFromCloud(true);
       if (cloudLinks && typeof cloudLinks === 'object' && !Array.isArray(cloudLinks)) {
@@ -973,9 +983,22 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
         } catch (e) {
           console.error(e);
         }
+        loaded = true;
       }
     } catch (e) {
       console.warn('Social links fetch notice:', e);
+    }
+
+    if (!loaded && typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem(SOCIAL_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && typeof parsed === 'object') {
+            setSocialLinks(parsed);
+          }
+        }
+      } catch {}
     }
   };
 
@@ -1041,9 +1064,7 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
           console.error(e);
         }
         loaded = true;
-        if (shouldShowSpinner) {
-          setIsLoading(false);
-        }
+        setIsLoading(false);
         return;
       }
     } catch (e) {
@@ -1067,9 +1088,7 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
       }
     }
 
-    if (shouldShowSpinner) {
-      setIsLoading(false);
-    }
+    setIsLoading(false);
   };
 
   const handleArticleViewsUpdated = (articleId: string, updatedViews: number) => {
@@ -1098,7 +1117,7 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
   };
 
   useEffect(() => {
-    const serverData = getServerInitialPublicData();
+    const serverData = getFreshServerInitialPublicData();
     const clientDeleted = getClientDeletedIds();
     const hasServerHydratedBundle = Boolean(
       serverData && Array.isArray(serverData.articles)
@@ -1116,6 +1135,22 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
         );
       } catch {}
     }
+    if (Array.isArray(serverData?.navCategories)) {
+      saveStoredNavCategories(serverData.navCategories);
+    }
+    if (serverData?.taxonomies && Array.isArray(serverData.taxonomies.categories) && Array.isArray(serverData.taxonomies.topics)) {
+      saveStoredTaxonomies(serverData.taxonomies);
+    }
+    if (serverData?.staticPages && (serverData.staticPages.about || serverData.staticPages.contacts)) {
+      try {
+        localStorage.setItem(PAGES_STORAGE_KEY, JSON.stringify(sanitizeStaticPages(serverData.staticPages)));
+      } catch {}
+    }
+    if (serverData?.socialLinks && typeof serverData.socialLinks === 'object') {
+      try {
+        localStorage.setItem(SOCIAL_STORAGE_KEY, JSON.stringify(serverData.socialLinks));
+      } catch {}
+    }
 
     const syncAllData = () => {
       fetchArticlesFromDb({ silent: articlesCountRef.current > 0 });
@@ -1124,6 +1159,13 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
       fetchTaxonomiesFromDb();
       fetchNavCategoriesFromDb();
     };
+
+    const handlePageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) {
+        syncAllData();
+      }
+    };
+    window.addEventListener('pageshow', handlePageShow);
 
     // Якщо публічна сторінка вже отримала свіжий серверний пакет (SSR),
     // виконуємо фонову перевірку після завершення первинного рендеру та завантаження зображень,
@@ -1146,6 +1188,7 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
 
       return () => {
         cancelled = true;
+        window.removeEventListener('pageshow', handlePageShow);
         if (idleId !== null && typeof (window as any).cancelIdleCallback === 'function') {
           (window as any).cancelIdleCallback(idleId);
         }
@@ -1156,6 +1199,9 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
     }
 
     syncAllData();
+    return () => {
+      window.removeEventListener('pageshow', handlePageShow);
+    };
   }, []);
 
   // Після входу редактора або адміністратора (перехід false -> true) підвантажуємо повний актуальний перелік даних
@@ -2154,14 +2200,20 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
               </a>
             </div>
           ) : currentRoute === 'about' || currentRoute === 'contacts' ? (
-            <StaticPageView
-              page={staticPages[currentRoute]}
-              lang={siteLang}
-              socialLinks={socialLinks}
-              onBack={() => navigateTo('main')}
-              onSwitchLang={handleSetLang}
-              onNavigateToPage={(slug) => navigateToPage(slug)}
-            />
+            isPagesLoading ? (
+              <div className="w-[92%] sm:w-[90%] md:max-w-3xl mx-auto py-24 text-center">
+                <div className="inline-block w-5 h-5 border-2 border-neutral-300 dark:border-neutral-700 border-t-black dark:border-t-white rounded-full animate-spin" />
+              </div>
+            ) : (
+              <StaticPageView
+                page={staticPages[currentRoute]}
+                lang={siteLang}
+                socialLinks={socialLinks}
+                onBack={() => navigateTo('main')}
+                onSwitchLang={handleSetLang}
+                onNavigateToPage={(slug) => navigateToPage(slug)}
+              />
+            )
           ) : activeSearchFilter ? (
             /* Сторінка результатів пошуку (з пагінацією по 10 статей, без "показати більше") */
             <div
@@ -2429,8 +2481,11 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
               className="w-[92%] sm:w-[90%] md:w-[calc(26/34*100%)] mx-auto pt-2 sm:pt-3.5 pb-10 sm:pb-14 animate-article-fade-in"
             >
               {(() => {
+                const activeSlugLower = String(activeCategorySection).trim().toLowerCase();
                 const matchedNavCategory = navCategories.find(
-                  (c) => c.slug === activeCategorySection || c.id === activeCategorySection
+                  (c) =>
+                    c.slug.trim().toLowerCase() === activeSlugLower ||
+                    c.id.trim().toLowerCase() === activeSlugLower
                 );
 
                 let categoryArticles: Article[] = [];

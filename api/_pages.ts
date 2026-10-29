@@ -83,12 +83,18 @@ async function initPagesDb() {
 }
 
 export async function getPages(): Promise<SitePagesData> {
-  // 1. Спроба завантажити з PostgreSQL
+  // 1. Спроба завантажити з PostgreSQL напряму (з повтором при холодному старті)
   try {
-    await initPagesDb();
-    const rows = await safeExecuteSql(async (sql) => {
+    let rows = await safeExecuteSql(async (sql) => {
       return await sql`SELECT value FROM site_settings WHERE key = 'static_pages' LIMIT 1;`;
-    }, 8000);
+    }, 9000);
+
+    if (!rows) {
+      await initPagesDb();
+      rows = await safeExecuteSql(async (sql) => {
+        return await sql`SELECT value FROM site_settings WHERE key = 'static_pages' LIMIT 1;`;
+      }, 9000);
+    }
 
     if (rows && rows.length > 0 && rows[0].value) {
       const parsed = typeof rows[0].value === 'string' ? JSON.parse(rows[0].value) : rows[0].value;
