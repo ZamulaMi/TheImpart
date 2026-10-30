@@ -13,9 +13,20 @@ import {
 import { markdownToHtml } from '../utils/editorConverter';
 import { PhotoCarousel, CarouselSlide } from './PhotoCarousel';
 import { ImageLightboxModal } from './ImageLightboxModal';
+import { Article, SiteLanguage } from '../types';
+import {
+  ArticleEmbedCard,
+  EmbeddedArticlePayload,
+  extractArticleIdFromInput,
+  parseArticleEmbedFromHtml,
+  parseArticleEmbedShortcode,
+} from './ArticleEmbedCard';
 
 interface ContentRendererProps {
   content: string;
+  articles?: Article[];
+  lang?: SiteLanguage;
+  onSelectArticle?: (articleId: string) => void;
 }
 
 // Видобування YouTube Video ID
@@ -285,6 +296,7 @@ type ParsedBlock =
   | { type: 'youtube'; videoId: string; url: string }
   | { type: 'image'; src: string; caption?: string }
   | { type: 'carousel'; images: CarouselSlide[]; caption?: string }
+  | { type: 'article-embed'; payload: EmbeddedArticlePayload }
   | { type: 'heading'; level: 1 | 2 | 3; text: string }
   | { type: 'table'; headers: string[]; rows: string[][] }
   | {
@@ -317,6 +329,16 @@ export function parseContentToBlocks(content: string): ParsedBlock[] {
     if (!line) {
       i++;
       continue;
+    }
+
+    // 0.0. Вбудований блок посилання на статтю: [article-card ...]
+    if (/^\[article-card\b/i.test(line)) {
+      const payload = parseArticleEmbedShortcode(line);
+      if (payload) {
+        blocks.push({ type: 'article-embed', payload });
+        i++;
+        continue;
+      }
     }
 
     // 0. Карусель фото: [carousel caption="..."]...[/carousel]
@@ -593,6 +615,8 @@ export function parseContentToBlocks(content: string): ParsedBlock[] {
       !/^[-*•]\s+/.test(lines[i].trim()) &&
       !/^\d+\.\s+/.test(lines[i].trim()) &&
       !lines[i].trim().startsWith('[callout:') &&
+      !lines[i].trim().startsWith('[carousel') &&
+      !lines[i].trim().startsWith('[article-card') &&
       !lines[i].trim().startsWith('![') &&
       !lines[i].trim().startsWith('[video:') &&
       !lines[i].trim().startsWith('[photo:')
@@ -644,7 +668,12 @@ interface ActiveLightboxState {
   onSyncIndex?: (index: number) => void;
 }
 
-export const ContentRenderer: React.FC<ContentRendererProps> = ({ content }) => {
+export const ContentRenderer: React.FC<ContentRendererProps> = ({
+  content,
+  articles,
+  lang = 'ua',
+  onSelectArticle,
+}) => {
   const [lightboxState, setLightboxState] = useState<ActiveLightboxState | null>(null);
 
   if (!content) return null;
@@ -686,88 +715,157 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({ content }) => 
     />
   ) : null;
 
-  // Якщо контент містить HTML-розмітку від візуального редактора
+  const handleRichHtmlClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+
+    // Якщо клікнули на внутрішнє текстове посилання на статтю сайту — плавний SPA-перехід
+    const anchorEl = target.closest('a') as HTMLAnchorElement | null;
+    if (
+      anchorEl &&
+      !anchorEl.classList.contains('article-embed-card') &&
+      onSelectArticle &&
+      !e.ctrlKey &&
+      !e.metaKey &&
+      !e.shiftKey &&
+      !e.altKey &&
+      e.button === 0
+    ) {
+      const href = anchorEl.getAttribute('href') || '';
+      const isSameSiteOrRelative =
+        href.startsWith('/article/') ||
+        (typeof window !== 'undefined' &&
+          (href.startsWith(`${window.location.origin}/article/`) ||
+            href.includes('theimpart.com/article/')));
+      if (isSameSiteOrRelative) {
+        const extractedId = extractArticleIdFromInput(href);
+        if (extractedId) {
+          e.preventDefault();
+          onSelectArticle(extractedId);
+          return;
+        }
+      }
+    }
+
+    // Клік на звичайне зображення статті для зуму (окрім каруселі та блоку посилання на статтю)
+    if (
+      target.tagName.toLowerCase() === 'img' &&
+      !target.closest('.article-carousel-wrapper') &&
+      !target.closest('.article-embed-wrapper')
+    ) {
+      const img = target as HTMLImageElement;
+      const figcaption = target.closest('figure')?.querySelector('figcaption')?.textContent;
+      openSingleLightbox(img.src, figcaption || img.alt);
+    }
+
+    // Клік на Telegram-спойлер для розкриття/приховування
+    const spoilerEl = target.closest('.tg-spoiler') as HTMLElement | null;
+    if (spoilerEl) {
+      spoilerEl.classList.toggle('revealed');
+    }
+  };
+
+  // Якщо контент містить HTML-розмітку від візуального редактора або шорткоди вбудованих карток
   const isHtml = /<(p|h[1-6]|table|blockquote|ul|ol|figure|div|mark|a)[^>]*>/i.test(content);
 
   if (isHtml) {
     const processedHtml = cleanHtmlForTheme(markdownToHtml(content));
-    const CAROUSEL_REGEX = /<figure\b[^>]*\bclass=["'][^"']*\barticle-carousel\b[^"']*["'][^>]*>[\s\S]*?<\/figure>/gi;
+    const WIDGET_REGEX =
+      /(<figure\b[^>]*\bclass=["'][^"']*\barticle-carousel\b[^"']*["'][^>]*>[\s\S]*?<\/figure>|<div\b[^>]*\bclass=["'][^"']*\barticle-embed-wrapper\b[^"']*["'][^>]*>[\s\S]*?<\/div>)/gi;
 
-    if (CAROUSEL_REGEX.test(processedHtml)) {
-      CAROUSEL_REGEX.lastIndex = 0;
+    if (WIDGET_REGEX.test(processedHtml)) {
+      WIDGET_REGEX.lastIndex = 0;
       const chunks: React.ReactNode[] = [];
       let lastIdx = 0;
       let match: RegExpExecArray | null;
 
-      while ((match = CAROUSEL_REGEX.exec(processedHtml)) !== null) {
+      while ((match = WIDGET_REGEX.exec(processedHtml)) !== null) {
         const matchIdx = match.index;
         if (matchIdx > lastIdx) {
           const before = processedHtml.slice(lastIdx, matchIdx);
-          chunks.push(
-            <div
-              key={`html_${lastIdx}`}
-              dangerouslySetInnerHTML={{ __html: before }}
-            />
-          );
+          if (before.trim()) {
+            chunks.push(
+              <div
+                key={`html_${lastIdx}`}
+                dangerouslySetInnerHTML={{ __html: before }}
+              />
+            );
+          }
         }
 
-        const fullFig = match[0];
-        const imagesMatch = fullFig.match(/data-carousel-images=["']([^"']*)["']/i);
-        const capMatch = fullFig.match(/data-carousel-caption=["']([^"']*)["']/i);
-        let slides: CarouselSlide[] = [];
-        if (imagesMatch) {
-          try {
-            const raw = imagesMatch[1].replace(/&quot;/g, '"').replace(/&#39;/g, "'");
-            slides = JSON.parse(raw);
-          } catch {}
-        }
-        const cap = capMatch ? capMatch[1] : undefined;
+        const fullWidget = match[0];
 
-        if (slides.length > 0) {
-          chunks.push(
-            <PhotoCarousel
-              key={`carousel_${matchIdx}`}
-              images={slides}
-              caption={cap}
-              onOpenLightbox={(src, c, allSlides, idx, syncIdx) =>
-                openCarouselLightbox(src, c, allSlides, idx, cap, syncIdx)
-              }
-            />
-          );
+        if (/^<figure\b/i.test(fullWidget)) {
+          const imagesMatch = fullWidget.match(/data-carousel-images=["']([^"']*)["']/i);
+          const capMatch = fullWidget.match(/data-carousel-caption=["']([^"']*)["']/i);
+          let slides: CarouselSlide[] = [];
+          if (imagesMatch) {
+            try {
+              const raw = imagesMatch[1].replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+              slides = JSON.parse(raw);
+            } catch {}
+          }
+          const cap = capMatch ? capMatch[1] : undefined;
+
+          if (slides.length > 0) {
+            chunks.push(
+              <PhotoCarousel
+                key={`carousel_${matchIdx}`}
+                images={slides}
+                caption={cap}
+                onOpenLightbox={(src, c, allSlides, idx, syncIdx) =>
+                  openCarouselLightbox(src, c, allSlides, idx, cap, syncIdx)
+                }
+              />
+            );
+          } else {
+            chunks.push(
+              <div
+                key={`raw_${matchIdx}`}
+                dangerouslySetInnerHTML={{ __html: fullWidget }}
+              />
+            );
+          }
         } else {
-          chunks.push(
-            <div
-              key={`raw_${matchIdx}`}
-              dangerouslySetInnerHTML={{ __html: fullFig }}
-            />
-          );
+          const embedPayload = parseArticleEmbedFromHtml(fullWidget);
+          if (embedPayload) {
+            chunks.push(
+              <ArticleEmbedCard
+                key={`embed_${matchIdx}_${embedPayload.id}`}
+                payload={embedPayload}
+                articles={articles}
+                lang={lang}
+                onSelectArticle={onSelectArticle}
+              />
+            );
+          } else {
+            chunks.push(
+              <div
+                key={`raw_embed_${matchIdx}`}
+                dangerouslySetInnerHTML={{ __html: fullWidget }}
+              />
+            );
+          }
         }
 
-        lastIdx = matchIdx + fullFig.length;
+        lastIdx = matchIdx + fullWidget.length;
       }
 
       if (lastIdx < processedHtml.length) {
-        chunks.push(
-          <div
-            key={`html_end_${lastIdx}`}
-            dangerouslySetInnerHTML={{ __html: processedHtml.slice(lastIdx) }}
-          />
-        );
+        const tail = processedHtml.slice(lastIdx);
+        if (tail.trim()) {
+          chunks.push(
+            <div
+              key={`html_end_${lastIdx}`}
+              dangerouslySetInnerHTML={{ __html: tail }}
+            />
+          );
+        }
       }
 
       return (
         <div
           className="article-rendered-html space-y-6 text-neutral-800 dark:text-[#cbcbcb] leading-relaxed font-sans text-base sm:text-lg"
-          onClick={(e) => {
-            const target = e.target as HTMLElement;
-            if (target.tagName.toLowerCase() === 'img' && !target.closest('.article-carousel-wrapper')) {
-              const img = target as HTMLImageElement;
-              const figcaption = target.closest('figure')?.querySelector('figcaption')?.textContent;
-              openSingleLightbox(img.src, figcaption || img.alt);
-            }
-            const spoilerEl = target.closest('.tg-spoiler') as HTMLElement;
-            if (spoilerEl) spoilerEl.classList.toggle('revealed');
-          }}
+          onClick={handleRichHtmlClick}
         >
           {chunks}
           {lightboxNode}
@@ -779,22 +877,7 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({ content }) => 
       <div className="article-rendered-html space-y-6 text-neutral-800 dark:text-[#cbcbcb] leading-relaxed font-sans text-base sm:text-lg">
         <div
           dangerouslySetInnerHTML={{ __html: processedHtml }}
-          onClick={(e) => {
-            const target = e.target as HTMLElement;
-
-            // Клік на зображення для зуму
-            if (target.tagName.toLowerCase() === 'img' && !target.closest('.article-carousel-wrapper')) {
-              const img = target as HTMLImageElement;
-              const figcaption = target.closest('figure')?.querySelector('figcaption')?.textContent;
-              openSingleLightbox(img.src, figcaption || img.alt);
-            }
-
-            // Клік на Telegram-спойлер для розкриття/приховування
-            const spoilerEl = target.closest('.tg-spoiler') as HTMLElement;
-            if (spoilerEl) {
-              spoilerEl.classList.toggle('revealed');
-            }
-          }}
+          onClick={handleRichHtmlClick}
         />
 
         {lightboxNode}
@@ -913,6 +996,19 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({ content }) => 
               onOpenLightbox={(src, c, allSlides, slideIdx, syncIdx) =>
                 openCarouselLightbox(src, c, allSlides, slideIdx, block.caption, syncIdx)
               }
+            />
+          );
+        }
+
+        // 4.6. Вбудований блок посилання на статтю з сайту
+        if (block.type === 'article-embed') {
+          return (
+            <ArticleEmbedCard
+              key={idx}
+              payload={block.payload}
+              articles={articles}
+              lang={lang}
+              onSelectArticle={onSelectArticle}
             />
           );
         }

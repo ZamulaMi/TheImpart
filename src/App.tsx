@@ -1465,16 +1465,21 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
 
   const handleSelectArticle = (id: string | null) => {
     if (id) {
-      // Фіксуємо точну позицію скролу користувача у стрічці перед переходом до статті
-      const currentScrollY = window.scrollY || document.documentElement.scrollTop || 0;
-      savedFeedScrollRef.current = currentScrollY;
-      savedArticleCardIdRef.current = id;
-      try {
-        sessionStorage.setItem('impart_saved_scroll', String(currentScrollY));
-        sessionStorage.setItem('impart_saved_card_id', id);
-      } catch {}
+      // Фіксуємо точну позицію скролу користувача у стрічці лише якщо перехід здійснюється зі стрічки (а не з іншої відкритої статті чи статичної сторінки)
+      if (!selectedArticleId && currentRoute === 'main') {
+        const currentScrollY = window.scrollY || document.documentElement.scrollTop || 0;
+        savedFeedScrollRef.current = currentScrollY;
+        savedArticleCardIdRef.current = id;
+        try {
+          sessionStorage.setItem('impart_saved_scroll', String(currentScrollY));
+          sessionStorage.setItem('impart_saved_card_id', id);
+        } catch {}
+      }
 
       window.history.pushState(null, '', `/article/${encodeURIComponent(id)}`);
+      if (currentRoute !== 'main') {
+        setCurrentRoute('main');
+      }
       setSelectedArticleId(id);
       window.scrollTo({ top: 0, behavior: 'instant' });
     } else {
@@ -2150,11 +2155,13 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
           {selectedArticle ? (
             <ArticleView
               article={selectedArticle}
+              articles={articles}
               lang={siteLang}
               onBack={() => handleSelectArticle(null)}
               onSwitchLang={handleSetLang}
               onSelectTopic={handleSelectTopicFromArticle}
               onSelectCategory={handleSelectCategoryFromArticle}
+              onSelectArticle={handleSelectArticle}
               onViewsUpdated={handleArticleViewsUpdated}
             />
           ) : selectedArticleId ? (
@@ -2207,11 +2214,13 @@ const sanitizeStaticPages = (data: SitePagesData): SitePagesData => ({
             ) : (
               <StaticPageView
                 page={staticPages[currentRoute]}
+                articles={articles}
                 lang={siteLang}
                 socialLinks={socialLinks}
                 onBack={() => navigateTo('main')}
                 onSwitchLang={handleSetLang}
                 onNavigateToPage={(slug) => navigateToPage(slug)}
+                onSelectArticle={handleSelectArticle}
               />
             )
           ) : activeSearchFilter ? (

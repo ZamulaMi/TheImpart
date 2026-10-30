@@ -9,21 +9,25 @@ import { getArticleSeoMetadata, resolveArticlePublishedIso, updateDocumentSeo } 
 
 interface ArticleViewProps {
   article: Article;
+  articles?: Article[];
   lang: SiteLanguage;
   onBack: () => void;
   onSwitchLang?: (lang: SiteLanguage) => void;
   onSelectTopic?: (topic: string) => void;
   onSelectCategory?: (category: string) => void;
+  onSelectArticle?: (articleId: string) => void;
   onViewsUpdated?: (articleId: string, views: number) => void;
 }
 
 export const ArticleView: React.FC<ArticleViewProps> = ({
   article,
+  articles,
   lang,
   onBack,
   onSwitchLang,
   onSelectTopic,
   onSelectCategory,
+  onSelectArticle,
   onViewsUpdated,
 }) => {
   const isEn = lang === 'en';
@@ -360,7 +364,12 @@ export const ArticleView: React.FC<ArticleViewProps> = ({
 
         {/* Рендеринг тексту з медіа */}
         <div className="prose prose-neutral dark:prose-invert max-w-none text-base sm:text-lg leading-relaxed text-neutral-800 dark:text-[#cbcbcb] article-view-content">
-          <ContentRenderer content={content} />
+          <ContentRenderer
+            content={content}
+            articles={articles}
+            lang={lang}
+            onSelectArticle={onSelectArticle}
+          />
         </div>
 
       {/* Теми статті внизу матеріалу */}

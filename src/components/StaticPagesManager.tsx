@@ -11,18 +11,20 @@ import {
   Sparkles,
   Info,
 } from 'lucide-react';
-import { SitePagesData, StaticPageId, DEFAULT_PAGES_DATA } from '../types';
+import { Article, SitePagesData, StaticPageId, DEFAULT_PAGES_DATA } from '../types';
 import { ContentRenderer } from './ContentRenderer';
 import { RichArticleEditor } from './RichArticleEditor';
 
 interface StaticPagesManagerProps {
   pages: SitePagesData;
+  articles?: Article[];
   onSavePages: (pages: SitePagesData) => Promise<void> | void;
   onViewOnSite?: (pageSlug: 'about' | 'contacts') => void;
 }
 
 export const StaticPagesManager: React.FC<StaticPagesManagerProps> = ({
   pages,
+  articles,
   onSavePages,
   onViewOnSite,
 }) => {
@@ -373,6 +375,7 @@ export const StaticPagesManager: React.FC<StaticPagesManagerProps> = ({
                   }
                   lang={langTab}
                   articleId={`static_page_${selectedPageId}`}
+                  articles={articles}
                   minHeight="480px"
                 />
               </div>
@@ -394,7 +397,7 @@ export const StaticPagesManager: React.FC<StaticPagesManagerProps> = ({
                 </div>
 
                 <div className="prose prose-neutral max-w-none text-neutral-800 text-sm sm:text-base leading-relaxed">
-                  <ContentRenderer content={contentVal || ''} />
+                  <ContentRenderer content={contentVal || ''} articles={articles} lang={langTab} />
                 </div>
               </div>
             </div>

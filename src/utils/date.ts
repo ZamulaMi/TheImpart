@@ -145,3 +145,60 @@ export function sortArticlesChronologically<T extends { createdAt?: string; id: 
   });
 }
 
+/**
+ * Форматує календарну дату публікації статті (наприклад, для вбудованого блоку посилання на статтю):
+ * UA: "29 жовтня 2026"
+ * EN: "October 29, 2026"
+ */
+export function formatArticlePublicationDate(
+  createdAt?: string,
+  dateStr?: string,
+  id?: string,
+  lang: SiteLanguage = 'ua'
+): string {
+  let targetDate: Date | null = null;
+
+  if (createdAt) {
+    const parsed = new Date(createdAt);
+    if (!isNaN(parsed.getTime())) {
+      targetDate = parsed;
+    }
+  }
+
+  if (!targetDate && id && /^\d{12,14}$/.test(String(id))) {
+    const parsed = new Date(parseInt(String(id), 10));
+    if (!isNaN(parsed.getTime())) {
+      targetDate = parsed;
+    }
+  }
+
+  if (!targetDate && dateStr) {
+    const parsed = new Date(dateStr);
+    if (!isNaN(parsed.getTime())) {
+      targetDate = parsed;
+    }
+  }
+
+  if (!targetDate) {
+    return (dateStr || '').replace(/\s*р\.?$/i, '').trim();
+  }
+
+  if (lang === 'en') {
+    return targetDate.toLocaleDateString('en-US', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+  }
+
+  return targetDate
+    .toLocaleDateString('uk-UA', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    })
+    .replace(/\s*р\.?$/i, '')
+    .trim();
+}
+
+

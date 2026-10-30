@@ -1,22 +1,26 @@
 import React from 'react';
 import { ArrowLeft } from 'lucide-react';
-import { StaticPageData, SiteLanguage, SiteSocialLinks } from '../types';
+import { Article, StaticPageData, SiteLanguage, SiteSocialLinks } from '../types';
 import { ContentRenderer } from './ContentRenderer';
 
 interface StaticPageViewProps {
   page: StaticPageData;
+  articles?: Article[];
   lang: SiteLanguage;
   socialLinks?: SiteSocialLinks;
   onBack: () => void;
   onSwitchLang?: (lang: SiteLanguage) => void;
   onNavigateToPage?: (pageSlug: 'about' | 'contacts') => void;
+  onSelectArticle?: (articleId: string) => void;
 }
 
 export const StaticPageView: React.FC<StaticPageViewProps> = ({
   page,
+  articles,
   lang,
   onBack,
   onNavigateToPage,
+  onSelectArticle,
 }) => {
   const isEn = lang === 'en';
   const rawTitle = isEn && page.titleEn ? page.titleEn : page.title;
@@ -88,7 +92,12 @@ export const StaticPageView: React.FC<StaticPageViewProps> = ({
 
       {/* Текстовий зміст */}
       <div className="prose prose-neutral dark:prose-invert max-w-none text-base sm:text-lg leading-relaxed text-neutral-800 dark:text-[#cbcbcb]">
-        <ContentRenderer content={content} />
+        <ContentRenderer
+          content={content}
+          articles={articles}
+          lang={lang}
+          onSelectArticle={onSelectArticle}
+        />
       </div>
 
       {/* Кнопка повернення внизу сторінки */}

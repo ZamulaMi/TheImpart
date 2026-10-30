@@ -36,10 +36,23 @@ import {
   ArrowDown,
   Plus,
   Trash2,
+  Newspaper,
+  Search,
 } from 'lucide-react';
 import { ContentRenderer } from './ContentRenderer';
 import { markdownToHtml } from '../utils/editorConverter';
 import { PhotoCarousel, CarouselSlide } from './PhotoCarousel';
+import {
+  ArticleEmbedCard,
+  buildArticleEmbedHtml,
+  buildArticleEmbedShortcode,
+  buildEmbeddedArticlePayload,
+  extractArticleIdFromInput,
+  resolveArticlePrimaryRubric,
+} from './ArticleEmbedCard';
+import { Article } from '../types';
+import { fetchArticlesFromCloud } from '../services/db';
+import { formatArticlePublicationDate, sortArticlesChronologically } from '../utils/date';
 import { getAuthHeaders } from '../services/auth';
 import { formatErrorMessage } from '../utils/errors';
 
@@ -50,6 +63,7 @@ interface RichArticleEditorProps {
   lang?: 'ua' | 'en';
   minHeight?: string;
   articleId?: string;
+  articles?: Article[];
 }
 
 export const RichArticleEditor: React.FC<RichArticleEditorProps> = ({
@@ -59,6 +73,7 @@ export const RichArticleEditor: React.FC<RichArticleEditorProps> = ({
   lang = 'ua',
   minHeight = '440px',
   articleId = 'default',
+  articles,
 }) => {
   const visualEditorRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -115,6 +130,64 @@ export const RichArticleEditor: React.FC<RichArticleEditorProps> = ({
   const [isUploadingCarousel, setIsUploadingCarousel] = useState(false);
   const [carouselUploadError, setCarouselUploadError] = useState<string | null>(null);
   const carouselFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Модальне вікно вставки прямокутного блоку посилання на статтю з сайту
+  const [showArticleEmbedModal, setShowArticleEmbedModal] = useState(false);
+  const [articleEmbedSearch, setArticleEmbedSearch] = useState('');
+  const [selectedEmbedArticleId, setSelectedEmbedArticleId] = useState<string>('');
+  const [isEditingExistingEmbed, setIsEditingExistingEmbed] = useState(false);
+  const [fetchedSiteArticles, setFetchedSiteArticles] = useState<Article[]>([]);
+  const [isLoadingSiteArticles, setIsLoadingSiteArticles] = useState(false);
+  const activeEmbedElRef = useRef<HTMLElement | null>(null);
+
+  const siteArticles = React.useMemo(() => {
+    const rawList = articles && articles.length > 0 ? articles : fetchedSiteArticles;
+    const sorted = sortArticlesChronologically(rawList);
+    // Ставимо поточну редаговану статтю в кінець списку, щоб зручніше обирати інші матеріали
+    return [
+      ...sorted.filter((a) => String(a.id) !== String(articleId)),
+      ...sorted.filter((a) => String(a.id) === String(articleId)),
+    ];
+  }, [articles, fetchedSiteArticles, articleId]);
+
+  const filteredEmbedArticles = React.useMemo(() => {
+    const q = articleEmbedSearch.trim();
+    if (!q) return siteArticles;
+
+    const extractedId = extractArticleIdFromInput(q);
+    if (extractedId) {
+      const exactMatches = siteArticles.filter(
+        (a) => String(a.id).toLowerCase() === extractedId.toLowerCase()
+      );
+      if (exactMatches.length > 0) return exactMatches;
+    }
+
+    const lower = q.toLowerCase();
+    return siteArticles.filter((a) => {
+      const haystack = [
+        a.id,
+        a.title,
+        a.titleEn,
+        a.category,
+        a.categoryEn,
+        ...(a.categories || []),
+        ...(a.categoriesEn || []),
+        ...(a.topics || []),
+        ...(a.topicsEn || []),
+        a.author,
+        a.date,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(lower);
+    });
+  }, [siteArticles, articleEmbedSearch]);
+
+  const selectedEmbedArticle = React.useMemo(
+    () => siteArticles.find((a) => String(a.id) === String(selectedEmbedArticleId)) || null,
+    [siteArticles, selectedEmbedArticleId]
+  );
 
   // 1. Автоматичне закриття випадаючих меню при кліку за їх межами або Esc
   useEffect(() => {
@@ -1323,6 +1396,114 @@ export const RichArticleEditor: React.FC<RichArticleEditorProps> = ({
     setVideoUrl('');
   };
 
+  // 22. Вставка або редагування прямокутного блоку посилання на статтю з сайту
+  const handleOpenArticleEmbedModal = (existingWrapperEl?: HTMLElement | null) => {
+    saveSelection();
+    setActiveDropdown(null);
+
+    if ((!articles || articles.length === 0) && fetchedSiteArticles.length === 0 && !isLoadingSiteArticles) {
+      setIsLoadingSiteArticles(true);
+      fetchArticlesFromCloud()
+        .then((loaded) => {
+          if (Array.isArray(loaded) && loaded.length > 0) {
+            setFetchedSiteArticles(loaded);
+            if (!existingWrapperEl) {
+              const sorted = sortArticlesChronologically(loaded);
+              const preferred = sorted.find((a) => String(a.id) !== String(articleId)) || sorted[0];
+              if (preferred) setSelectedEmbedArticleId(String(preferred.id));
+            }
+          }
+        })
+        .finally(() => {
+          setIsLoadingSiteArticles(false);
+        });
+    }
+
+    if (existingWrapperEl) {
+      activeEmbedElRef.current = existingWrapperEl;
+      setIsEditingExistingEmbed(true);
+      const existingId = existingWrapperEl.getAttribute('data-article-id') || '';
+      setSelectedEmbedArticleId(existingId);
+      setArticleEmbedSearch('');
+    } else {
+      activeEmbedElRef.current = null;
+      setIsEditingExistingEmbed(false);
+      setArticleEmbedSearch('');
+      const defaultTarget = siteArticles.find((a) => String(a.id) !== String(articleId)) || siteArticles[0];
+      setSelectedEmbedArticleId(defaultTarget ? String(defaultTarget.id) : '');
+    }
+
+    setShowArticleEmbedModal(true);
+  };
+
+  const handleEmbedSearchChange = (val: string) => {
+    setArticleEmbedSearch(val);
+    const extractedId = extractArticleIdFromInput(val);
+    if (extractedId) {
+      const matched = siteArticles.find(
+        (a) => String(a.id).toLowerCase() === extractedId.toLowerCase()
+      );
+      if (matched) {
+        setSelectedEmbedArticleId(String(matched.id));
+      }
+    }
+  };
+
+  const handleApplyArticleEmbed = () => {
+    if (!selectedEmbedArticle) return;
+    const payload = buildEmbeddedArticlePayload(selectedEmbedArticle);
+
+    if (viewMode === 'code') {
+      const shortcode = buildArticleEmbedShortcode(payload);
+      wrapSelectionInTextarea(`\n\n${shortcode}\n\n`, '', '');
+      setShowArticleEmbedModal(false);
+      activeEmbedElRef.current = null;
+      setIsEditingExistingEmbed(false);
+      return;
+    }
+
+    const embedHtml = buildArticleEmbedHtml(payload, lang);
+
+    if (
+      isEditingExistingEmbed &&
+      activeEmbedElRef.current &&
+      visualEditorRef.current?.contains(activeEmbedElRef.current)
+    ) {
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = embedHtml.trim();
+      const newWrapper = tempDiv.firstElementChild;
+      if (newWrapper) {
+        activeEmbedElRef.current.replaceWith(newWrapper);
+        pushToHistoryAndEmit(visualEditorRef.current.innerHTML);
+      }
+      setShowArticleEmbedModal(false);
+      activeEmbedElRef.current = null;
+      setIsEditingExistingEmbed(false);
+      return;
+    }
+
+    insertBlockElement(embedHtml);
+    setShowArticleEmbedModal(false);
+    activeEmbedElRef.current = null;
+    setIsEditingExistingEmbed(false);
+  };
+
+  const handleRemoveArticleEmbed = () => {
+    if (
+      activeEmbedElRef.current &&
+      visualEditorRef.current?.contains(activeEmbedElRef.current)
+    ) {
+      activeEmbedElRef.current.remove();
+      if (!visualEditorRef.current.innerHTML.trim()) {
+        visualEditorRef.current.innerHTML = '<p><br/></p>';
+      }
+      pushToHistoryAndEmit(visualEditorRef.current.innerHTML);
+    }
+    setShowArticleEmbedModal(false);
+    activeEmbedElRef.current = null;
+    setIsEditingExistingEmbed(false);
+  };
+
   // Статистика тексту
   const wordsCount = value.trim() ? value.replace(/<[^>]*>/g, ' ').trim().split(/\s+/).filter(Boolean).length : 0;
   const charsCount = value.replace(/<[^>]*>/g, '').length;
@@ -1887,6 +2068,20 @@ export const RichArticleEditor: React.FC<RichArticleEditorProps> = ({
               saveSelection();
               e.preventDefault();
             }}
+            onClick={() => handleOpenArticleEmbedModal(null)}
+            className="inline-flex items-center gap-1 px-2 py-1 text-neutral-800 bg-white hover:bg-neutral-100 border border-neutral-300 rounded transition-colors cursor-pointer text-xs font-medium shadow-2xs"
+            title="Вставити прямокутний блок-посилання на статтю з сайту (заставка + назва + рубрика + дата)"
+          >
+            <Newspaper className="w-3.5 h-3.5 text-neutral-800" />
+            <span>Стаття з сайту</span>
+          </button>
+
+          <button
+            type="button"
+            onMouseDown={(e) => {
+              saveSelection();
+              e.preventDefault();
+            }}
             onClick={() => {
               saveSelection();
               setShowTableModal(true);
@@ -2030,6 +2225,15 @@ export const RichArticleEditor: React.FC<RichArticleEditorProps> = ({
             onClick={(e) => {
               saveSelection();
               const target = e.target as HTMLElement;
+              const embedEl = target.closest(
+                '.article-embed-wrapper, [data-article-embed]'
+              ) as HTMLElement | null;
+              if (embedEl && visualEditorRef.current?.contains(embedEl)) {
+                e.preventDefault();
+                e.stopPropagation();
+                handleOpenArticleEmbedModal(embedEl);
+                return;
+              }
               const linkEl = target.closest('a');
               if (linkEl && visualEditorRef.current?.contains(linkEl)) {
                 e.preventDefault();
@@ -2060,6 +2264,15 @@ export const RichArticleEditor: React.FC<RichArticleEditorProps> = ({
               onClick={(e) => {
                 saveSelection();
                 const target = e.target as HTMLElement;
+                const embedEl = target.closest(
+                  '.article-embed-wrapper, [data-article-embed]'
+                ) as HTMLElement | null;
+                if (embedEl && visualEditorRef.current?.contains(embedEl)) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleOpenArticleEmbedModal(embedEl);
+                  return;
+                }
                 const linkEl = target.closest('a');
                 if (linkEl && visualEditorRef.current?.contains(linkEl)) {
                   e.preventDefault();
@@ -2077,7 +2290,7 @@ export const RichArticleEditor: React.FC<RichArticleEditorProps> = ({
               <div className="text-[11px] font-sans uppercase tracking-wider text-neutral-400 font-semibold mb-4 pb-1 border-b border-neutral-200">
                 Живий попередній перегляд читача
               </div>
-              <ContentRenderer content={value} />
+              <ContentRenderer content={value} articles={siteArticles} lang={lang} />
             </div>
           </div>
         )}
@@ -2098,7 +2311,7 @@ export const RichArticleEditor: React.FC<RichArticleEditorProps> = ({
         {/* 4. РЕЖИМ ЧИСТОГО ПРЕВ'Ю */}
         {viewMode === 'preview' && (
           <div style={{ minHeight }} className="p-6 sm:p-10 bg-neutral-50/30 overflow-y-auto">
-            <ContentRenderer content={value} />
+            <ContentRenderer content={value} articles={siteArticles} lang={lang} />
           </div>
         )}
       </div>
@@ -2810,6 +3023,244 @@ export const RichArticleEditor: React.FC<RichArticleEditorProps> = ({
                   >
                     <Images className="w-3.5 h-3.5" />
                     <span>Вставити карусель ({carouselSlides.length})</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* 6. БЛОК ПОСИЛАННЯ НА СТАТТЮ З САЙТУ */}
+      {showArticleEmbedModal &&
+        createPortal(
+          <div
+            onClick={() => {
+              setShowArticleEmbedModal(false);
+              activeEmbedElRef.current = null;
+              setIsEditingExistingEmbed(false);
+            }}
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fade-in"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-5 sm:p-6 border border-neutral-200 max-h-[92vh] flex flex-col text-black font-sans"
+              data-theme="light"
+            >
+              {/* Шапка модального вікна */}
+              <div className="flex items-center justify-between pb-3.5 border-b border-neutral-100 mb-4 shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-neutral-100 rounded-lg text-neutral-900">
+                    <Newspaper className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-sm uppercase tracking-wider text-black">
+                      {isEditingExistingEmbed
+                        ? 'Редагувати блок статті з сайту'
+                        : 'Вставити посилання на статтю з сайту'}
+                    </h3>
+                    <p className="text-xs text-neutral-500 mt-0.5">
+                      Оберіть матеріал зі списку або вставте посилання на статтю сайту
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowArticleEmbedModal(false);
+                    activeEmbedElRef.current = null;
+                    setIsEditingExistingEmbed(false);
+                  }}
+                  className="p-1 text-neutral-400 hover:text-black rounded transition-colors cursor-pointer"
+                  title="Закрити"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Поле пошуку або прямого посилання */}
+              <div className="mb-3.5 shrink-0">
+                <div className="relative">
+                  <Search className="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={articleEmbedSearch}
+                    onChange={(e) => handleEmbedSearchChange(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && selectedEmbedArticle) {
+                        e.preventDefault();
+                        handleApplyArticleEmbed();
+                      }
+                    }}
+                    placeholder="Пошук за назвою, рубрикою або вставте URL статті з сайту (/article/...)"
+                    className="w-full text-sm border border-neutral-300 rounded-lg pl-9 pr-9 py-2.5 bg-white text-black placeholder-neutral-400 focus:border-black focus:outline-none transition-colors"
+                    autoFocus
+                  />
+                  {articleEmbedSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setArticleEmbedSearch('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-black cursor-pointer"
+                      title="Очистити пошук"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Тіло: список статей + живий попередній перегляд блоку */}
+              <div className="flex-1 overflow-y-auto pr-1 space-y-4 min-h-0">
+                <div className="border border-neutral-200 rounded-lg overflow-hidden bg-neutral-50/40">
+                  {isLoadingSiteArticles ? (
+                    <div className="py-10 text-center text-xs text-neutral-500">
+                      Завантаження списку статей сайту...
+                    </div>
+                  ) : filteredEmbedArticles.length === 0 ? (
+                    <div className="py-10 px-4 text-center text-xs text-neutral-500">
+                      Матеріалів за цим запитом не знайдено. Спробуйте іншу назву, рубрику або перевірте посилання.
+                    </div>
+                  ) : (
+                    <div className="max-h-60 overflow-y-auto divide-y divide-neutral-200/80">
+                      {filteredEmbedArticles.map((art) => {
+                        const isSelected = String(art.id) === String(selectedEmbedArticleId);
+                        const isCurrentArticle = String(art.id) === String(articleId);
+                        const itemTitle =
+                          lang === 'en' && art.titleEn?.trim() ? art.titleEn.trim() : art.title;
+                        const itemRubric = resolveArticlePrimaryRubric(art, lang);
+                        const itemDate = formatArticlePublicationDate(
+                          art.createdAt,
+                          art.date,
+                          art.id,
+                          lang
+                        );
+
+                        return (
+                          <button
+                            key={art.id}
+                            type="button"
+                            onClick={() => setSelectedEmbedArticleId(String(art.id))}
+                            className={`w-full flex items-center gap-3 p-2.5 sm:p-3 text-left transition-colors cursor-pointer ${
+                              isSelected
+                                ? 'bg-neutral-900 text-white'
+                                : 'bg-white hover:bg-neutral-50 text-neutral-900'
+                            }`}
+                          >
+                            <div className="w-16 h-11 rounded overflow-hidden bg-neutral-100 shrink-0 border border-black/5">
+                              {art.coverImage ? (
+                                <img
+                                  src={art.coverImage}
+                                  alt={itemTitle}
+                                  className="w-full h-full object-cover"
+                                  loading="lazy"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-[9px] font-serif text-neutral-400">
+                                  Impart
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex-1 min-w-0">
+                              <div
+                                className={`text-[10px] uppercase tracking-wider font-semibold truncate ${
+                                  isSelected ? 'text-neutral-300' : 'text-neutral-500'
+                                }`}
+                              >
+                                {itemRubric}
+                                {itemDate ? ` · ${itemDate}` : ''}
+                                {isCurrentArticle ? ' · Поточна стаття' : ''}
+                                {art.published === false ? ' · Приховано' : ''}
+                              </div>
+                              <div
+                                className={`text-xs sm:text-sm font-medium line-clamp-1 mt-0.5 ${
+                                  isSelected ? 'text-white' : 'text-neutral-900'
+                                }`}
+                              >
+                                {itemTitle || 'Без назви'}
+                              </div>
+                            </div>
+
+                            <div className="shrink-0">
+                              {isSelected ? (
+                                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-white text-black">
+                                  <Check className="w-3.5 h-3.5" />
+                                </span>
+                              ) : (
+                                <span className="inline-block w-5 h-5 rounded-full border border-neutral-300" />
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Живий попередній перегляд блоку */}
+                {selectedEmbedArticle && (
+                  <div className="pt-1">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-[11px] uppercase tracking-wider text-neutral-500 font-semibold">
+                        Попередній перегляд блоку у статті
+                      </span>
+                      <span className="text-[11px] text-neutral-400">
+                        Автоматично адаптується під світлу та темну тему
+                      </span>
+                    </div>
+                    <div className="p-3 sm:p-4 rounded-xl bg-white border border-neutral-200/80">
+                      <div className="[&_.article-embed-wrapper]:!my-0">
+                        <ArticleEmbedCard
+                          payload={buildEmbeddedArticlePayload(selectedEmbedArticle)}
+                          articles={siteArticles}
+                          lang={lang}
+                          isPreview={true}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Нижня панель дій */}
+              <div className="flex items-center justify-between gap-2 pt-3.5 border-t border-neutral-100 mt-4 shrink-0">
+                {isEditingExistingEmbed ? (
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={handleRemoveArticleEmbed}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Видалити блок</span>
+                  </button>
+                ) : (
+                  <div />
+                )}
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowArticleEmbedModal(false);
+                      activeEmbedElRef.current = null;
+                      setIsEditingExistingEmbed(false);
+                    }}
+                    className="px-4 py-2 text-xs font-medium text-neutral-600 hover:bg-neutral-100 rounded-lg cursor-pointer transition-colors"
+                  >
+                    Скасувати
+                  </button>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={handleApplyArticleEmbed}
+                    disabled={!selectedEmbedArticle}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium bg-black hover:bg-neutral-800 text-white rounded-lg transition-colors disabled:opacity-40 cursor-pointer shadow-xs"
+                  >
+                    <Newspaper className="w-3.5 h-3.5" />
+                    <span>
+                      {isEditingExistingEmbed ? 'Оновити блок статті' : 'Вставити блок статті'}
+                    </span>
                   </button>
                 </div>
               </div>

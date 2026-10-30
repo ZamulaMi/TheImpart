@@ -2,10 +2,24 @@
  * Утиліти для двосторонньої конвертації між Markdown та HTML для візуального редактора (WYSIWYG)
  */
 
+import {
+  buildArticleEmbedHtml,
+  buildArticleEmbedShortcode,
+  parseArticleEmbedFromHtml,
+  parseArticleEmbedShortcode,
+} from '../components/ArticleEmbedCard';
+
 export function markdownToHtml(md: string): string {
   if (!md) return '';
 
   let html = md.replace(/\r\n/g, '\n');
+
+  // 0. Вбудований блок посилання на статтю з сайту: [article-card ...]
+  html = html.replace(/\[article-card\b[^\]]*\]/gi, (fullTag) => {
+    const payload = parseArticleEmbedShortcode(fullTag);
+    if (!payload) return fullTag;
+    return buildArticleEmbedHtml(payload, 'ua');
+  });
 
   // 1. Callout блоки: [callout:variant title="..."]content[/callout]
   html = html.replace(
@@ -298,6 +312,12 @@ export function htmlToMarkdown(html: string): string {
         return `\n\n${headLine}\n${sepLine}\n${rowsLines}\n\n`;
       }
       case 'div': {
+        if (el.classList.contains('article-embed-wrapper') || el.hasAttribute('data-article-embed')) {
+          const payload = parseArticleEmbedFromHtml(el.outerHTML);
+          if (payload) {
+            return `\n\n${buildArticleEmbedShortcode(payload)}\n\n`;
+          }
+        }
         if (el.dataset.variant || el.classList.contains('callout-box')) {
           const variant = el.dataset.variant || 'info';
           const title = el.dataset.title || el.querySelector('.callout-title')?.textContent || '';

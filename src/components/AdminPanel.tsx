@@ -1292,6 +1292,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           ) : activeSection === 'pages' && !isEditor ? (
             <StaticPagesManager
               pages={pages || DEFAULT_PAGES_DATA}
+              articles={articles}
               onSavePages={onSavePages || (async () => {})}
               onViewOnSite={onViewPageOnSite}
             />
@@ -1927,6 +1928,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       placeholder="Напишіть текст статті українською тут..."
                       lang="ua"
                       articleId={editingArticle.id || 'new'}
+                      articles={articles}
                       minHeight="420px"
                     />
                   </div>
@@ -2328,6 +2330,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       placeholder="Write English article content here..."
                       lang="en"
                       articleId={editingArticle.id || 'new'}
+                      articles={articles}
                       minHeight="420px"
                     />
                   </div>

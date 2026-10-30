@@ -638,6 +638,8 @@ export const DraftsManager: React.FC<DraftsManagerProps> = ({
                             ? reviewingDraft.articleData.contentEn || 'No content provided for English version.'
                             : reviewingDraft.articleData.content || ''
                         }
+                        articles={articles}
+                        lang={compareTab}
                       />
                     </div>
                   </div>
@@ -678,6 +680,8 @@ export const DraftsManager: React.FC<DraftsManagerProps> = ({
                           ? reviewingDraft.articleData?.contentEn || 'No content provided for English version.'
                           : reviewingDraft.articleData?.content || ''
                       }
+                      articles={articles}
+                      lang={compareTab}
                     />
                   </div>
                 </div>

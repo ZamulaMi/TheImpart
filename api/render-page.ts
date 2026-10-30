@@ -178,10 +178,12 @@ function sanitizeServerRichHtml(rawHtml: string): string {
     .replace(/<script[\s\S]*?<\/script>/gi, '')
     .replace(/<style[\s\S]*?<\/style>/gi, '')
     .replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
+    .replace(/\scontenteditable\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')
     .replace(/\son[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')
     .replace(/javascript:/gi, '')
     .replace(/<img\b([^>]*)>/gi, (_full, attrs: string) => {
       let updatedAttrs = attrs;
+      const isEmbedCover = /\barticle-embed-img\b/i.test(updatedAttrs);
       if (!/\bloading\s*=/i.test(updatedAttrs)) {
         updatedAttrs += ' loading="lazy"';
       }
@@ -189,10 +191,10 @@ function sanitizeServerRichHtml(rawHtml: string): string {
         updatedAttrs += ' decoding="async"';
       }
       if (!/\bwidth\s*=/i.test(updatedAttrs)) {
-        updatedAttrs += ' width="1200"';
+        updatedAttrs += isEmbedCover ? ' width="480"' : ' width="1200"';
       }
       if (!/\bheight\s*=/i.test(updatedAttrs)) {
-        updatedAttrs += ' height="675"';
+        updatedAttrs += isEmbedCover ? ' height="320"' : ' height="675"';
       }
       return `<img${updatedAttrs}>`;
     });
@@ -262,6 +264,28 @@ function renderArticleBodyServerHtml(rawContent?: string): string {
           }</figure>`
         );
       }
+      i++;
+      continue;
+    }
+
+    if (/^\[article-card\b/i.test(trimmed)) {
+      const getAttr = (name: string): string => {
+        const m = trimmed.match(new RegExp(`\\b${name}=["']([^"']*)["']`, 'i'));
+        return m ? m[1] : '';
+      };
+      const embedId = getAttr('id');
+      const embedTitle = getAttr('title') || 'Стаття';
+      const embedRubric = getAttr('rubric') || 'Статті';
+      const embedDate = getAttr('date') || '';
+      const embedCover = getAttr('cover') || '';
+      const embedHref = embedId ? `/article/${encodeURIComponent(embedId)}` : '#';
+      const mediaHtml =
+        embedCover && !embedCover.startsWith('data:')
+          ? `<img class="article-embed-img" src="${escapeHtml(embedCover)}" alt="${escapeHtml(embedTitle)}" width="480" height="320" loading="lazy" decoding="async" />`
+          : `<span class="article-embed-fallback">The Impart</span>`;
+      htmlBlocks.push(
+        `<div class="article-embed-wrapper" data-article-embed="true" data-article-id="${escapeHtml(embedId)}" data-article-title="${escapeHtml(embedTitle)}" data-article-rubric="${escapeHtml(embedRubric)}" data-article-date="${escapeHtml(embedDate)}" data-article-cover="${escapeHtml(embedCover)}"><a class="article-embed-card" href="${escapeHtml(embedHref)}"><span class="article-embed-media">${mediaHtml}</span><span class="article-embed-body"><span class="article-embed-rubric">${escapeHtml(embedRubric)}</span><span class="article-embed-title">${escapeHtml(embedTitle)}</span>${embedDate ? `<span class="article-embed-date">${escapeHtml(embedDate)}</span>` : ''}</span></a></div>`
+      );
       i++;
       continue;
     }
